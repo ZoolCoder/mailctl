@@ -1,89 +1,97 @@
 /*
- * ZoolCoder brand layer for the Antora default UI.
+ * ZoolCoder design layer for the Antora default UI.
  *
- * Tokens are taken from zoolcoder.com's own stylesheet so the docs and the
- * studio site stay in step: the near-black canvas, the teal/cyan accent pair,
- * Space Grotesk for display and Inter for UI text.
+ * Tokens come from zoolcoder.com so the docs and the studio site stay in step.
+ * Beyond colour, this file reworks the stock layout: the default UI's type scale
+ * is nearly flat, its tables rule every cell, its content column pins itself to
+ * the left of a wide viewport, and it ships chrome (a version selector,
+ * breadcrumbs) that a single unversioned component does not need.
  *
- * The stable Antora UI does not expose CSS custom properties, so this file
- * targets its selectors directly. It is linked *after* site.css, which means
- * equal-specificity rules win without needing !important.
+ * The stable Antora UI exposes no CSS custom properties, so this targets its
+ * selectors directly. It loads after site.css, so equal-specificity rules win
+ * without !important; where upstream is more specific the selector is restated
+ * and a comment says why.
  */
 
+/* ------------------------------------------------------------------ tokens */
+
 :root {
-  /* Canvas and surfaces — dark is the brand's primary mode. */
   --zc-bg: #07080b;
   --zc-surface: #0d1015;
   --zc-surface-2: #12161d;
   --zc-border: rgba(255, 255, 255, 0.08);
-  --zc-hairline: linear-gradient(90deg, transparent, var(--zc-border), transparent);
+  --zc-border-strong: rgba(255, 255, 255, 0.14);
 
-  /* Text. */
-  --zc-text: #f8fafc;
+  --zc-text: #e8edf5;
+  --zc-text-strong: #f8fafc;
   --zc-text-muted: #94a3b8;
+  --zc-text-faint: #64748b;
 
-  /* Accents. Teal leads, cyan supports, indigo and amber are incidental. */
   --zc-accent: #5eead4;
   --zc-accent-strong: #2dd4bf;
   --zc-accent-contrast: #07080b;
   --zc-accent-glow: rgba(45, 212, 191, 0.3);
   --zc-cyan: #22d3ee;
-  --zc-indigo: #6366f1;
+  --zc-indigo: #818cf8;
   --zc-amber: #fbbf24;
 
-  --zc-ambient-1: rgba(45, 212, 191, 0.16);
-  --zc-ambient-2: rgba(34, 211, 238, 0.1);
+  --zc-ambient-1: rgba(45, 212, 191, 0.14);
+  --zc-ambient-2: rgba(34, 211, 238, 0.09);
 
-  /* Shape and motion. */
-  --zc-radius: 18px;
-  --zc-radius-sm: 12px;
-  --zc-shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.6);
-  --zc-shadow-sm: 0 2px 12px -6px rgba(0, 0, 0, 0.7);
+  --zc-radius-sm: 10px;
+  --zc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --zc-shadow: 0 18px 44px -22px rgba(0, 0, 0, 0.7);
   --zc-ease: cubic-bezier(0.16, 1, 0.3, 1);
 
   --zc-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --zc-font-display: "Space Grotesk", var(--zc-font-ui);
   --zc-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Syntax tokens. The bundle ships a GitHub *light* highlight.js theme whose
-     colours are near-black, so they must all be restated for a dark canvas. */
-  --zc-syn-comment: #94a3b8;
+  /* Syntax tokens. The bundle ships a light highlight.js theme whose colours are
+     near-black, so every one must be restated for a dark canvas. */
+  --zc-syn-comment: #7c8798;
   --zc-syn-keyword: #22d3ee;
   --zc-syn-string: #5eead4;
   --zc-syn-number: #fbbf24;
-  --zc-syn-name: #f8fafc;
+  --zc-syn-name: #e8edf5;
   --zc-syn-title: #a5b4fc;
   --zc-syn-meta: #64748b;
 
   color-scheme: dark;
 }
 
-/* The brand ships a light token set too, so readers who ask for light get a
-   first-class version rather than an inverted approximation. */
 @media (prefers-color-scheme: light) {
   :root {
-    --zc-bg: #f8fafc;
+    --zc-bg: #fbfcfe;
     --zc-surface: #ffffff;
-    --zc-surface-2: #f1f5f9;
-    --zc-border: #e2e8f0;
-    --zc-text: #0f172a;
-    --zc-text-muted: #566273;
-    --zc-accent: #0f766e;
+    --zc-surface-2: #f4f7fa;
+    --zc-border: #e3e9f0;
+    --zc-border-strong: #cfd8e3;
+
+    --zc-text: #1e293b;
+    --zc-text-strong: #0b1220;
+    --zc-text-muted: #5b6879;
+    --zc-text-faint: #8593a5;
+
+    --zc-accent: #0d7a6f;
     --zc-accent-strong: #0f766e;
     --zc-accent-contrast: #ffffff;
-    --zc-accent-glow: rgba(45, 212, 191, 0.28);
-    --zc-ambient-1: rgba(45, 212, 191, 0.12);
-    --zc-ambient-2: rgba(34, 211, 238, 0.08);
-    --zc-shadow: 0 16px 40px -20px rgba(15, 23, 42, 0.18);
-    --zc-shadow-sm: 0 2px 10px -6px rgba(15, 23, 42, 0.12);
+    --zc-accent-glow: rgba(13, 148, 136, 0.22);
+    --zc-cyan: #0e7490;
+    --zc-indigo: #4f46e5;
+    --zc-amber: #b45309;
 
-    /* Light-mode tokens are darkened rather than reused: cyan and teal at their
-       dark-mode luminance fail contrast on a white surface. */
+    --zc-ambient-1: rgba(45, 212, 191, 0.1);
+    --zc-ambient-2: rgba(34, 211, 238, 0.07);
+
+    --zc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --zc-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.2);
+
     --zc-syn-comment: #6b7280;
     --zc-syn-keyword: #0e7490;
     --zc-syn-string: #0f766e;
     --zc-syn-number: #b45309;
-    --zc-syn-name: #0f172a;
+    --zc-syn-name: #0b1220;
     --zc-syn-title: #4338ca;
     --zc-syn-meta: #64748b;
 
@@ -91,21 +99,19 @@
   }
 }
 
-/* ---------------------------------------------------------------- canvas */
+/* ------------------------------------------------------------------ canvas */
 
-html {
-  background: var(--zc-bg);
-}
+html { background: var(--zc-bg); }
 
 body {
   font-family: var(--zc-font-ui);
   background: var(--zc-bg);
   color: var(--zc-text);
+  font-size: 16.5px;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Two faint ambient washes, echoing the studio site's hero. Fixed so they do
-   not scroll, and behind everything so text contrast is unaffected. */
 body::before {
   content: "";
   position: fixed;
@@ -113,32 +119,29 @@ body::before {
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(60rem 30rem at 12% -10%, var(--zc-ambient-1), transparent 70%),
-    radial-gradient(50rem 26rem at 92% 4%, var(--zc-ambient-2), transparent 72%);
+    radial-gradient(70rem 34rem at 8% -12%, var(--zc-ambient-1), transparent 68%),
+    radial-gradient(56rem 28rem at 96% 2%, var(--zc-ambient-2), transparent 70%);
 }
 
-.body {
-  background: transparent;
+.body { background: transparent; }
+
+a { color: var(--zc-accent); text-underline-offset: 2px; }
+a:hover { color: var(--zc-accent-strong); }
+
+::selection { background: var(--zc-accent-glow); color: var(--zc-text-strong); }
+
+:focus-visible {
+  outline: 2px solid var(--zc-accent-strong);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-a {
-  color: var(--zc-accent);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
-
-a:hover {
-  color: var(--zc-accent-strong);
-}
-
-/* ---------------------------------------------------------------- navbar */
+/* ------------------------------------------------------------------ navbar */
 
 .navbar {
-  /* Opaque first as a fallback: a browser without color-mix support drops the
-     translucent declaration and would otherwise fall back to upstream's white. */
   background: var(--zc-surface);
-  background: color-mix(in srgb, var(--zc-surface) 82%, transparent);
-  backdrop-filter: saturate(140%) blur(12px);
+  background: color-mix(in srgb, var(--zc-surface) 78%, transparent);
+  backdrop-filter: saturate(150%) blur(14px);
   border-bottom: 1px solid var(--zc-border);
   box-shadow: none;
 }
@@ -148,42 +151,63 @@ a:hover {
 .navbar-link {
   color: var(--zc-text);
   font-family: var(--zc-font-ui);
+  font-size: 0.94rem;
 }
 
-.navbar-item:hover,
-.navbar-link:hover {
-  background: transparent;
-  color: var(--zc-accent);
+.navbar-end .navbar-item {
+  color: var(--zc-text-muted);
+  font-weight: 500;
+  position: relative;
 }
 
-/* The wordmark: monospaced-feeling display type with the accent on the mark. */
+.navbar-end .navbar-item:hover { background: transparent; color: var(--zc-text-strong); }
+
+/* An underline that grows from the centre — the only motion in the header. */
+.navbar-end .navbar-item::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  bottom: 0.8rem;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--zc-accent-strong);
+  transition: left 0.25s var(--zc-ease), right 0.25s var(--zc-ease);
+}
+
+.navbar-end .navbar-item:hover::after { left: 0.75rem; right: 0.75rem; }
+
 .zc-wordmark {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.55rem;
   font-family: var(--zc-font-display);
   font-weight: 700;
+  font-size: 1.06rem;
   letter-spacing: -0.02em;
+  color: var(--zc-text-strong);
 }
 
 .zc-wordmark .zc-mark {
   display: inline-grid;
   place-items: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 8px;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9px;
   background: linear-gradient(140deg, var(--zc-accent-strong), var(--zc-cyan));
   color: var(--zc-accent-contrast);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  box-shadow: 0 0 0 1px var(--zc-border), 0 6px 18px -8px var(--zc-accent-glow);
+  letter-spacing: 0;
+  box-shadow: 0 0 0 1px var(--zc-border-strong), 0 8px 20px -10px var(--zc-accent-glow);
 }
 
 .zc-wordmark .zc-product {
   font-family: var(--zc-font-mono);
   font-weight: 500;
-  font-size: 0.95rem;
-  color: var(--zc-text-muted);
+  font-size: 0.92rem;
+  color: var(--zc-text-faint);
+  letter-spacing: 0;
 }
 
 .navbar-menu,
@@ -193,311 +217,331 @@ a:hover {
   box-shadow: var(--zc-shadow);
 }
 
-/* -------------------------------------------------------------- sidebar */
+/* ----------------------------------------------------------------- sidebar */
 
-.nav-container,
-.nav {
-  background: transparent;
-  border-right: 1px solid var(--zc-border);
-}
+.nav-container { background: transparent; border-right: 1px solid var(--zc-border); }
+.nav { background: transparent; }
 
 .nav-menu {
   font-family: var(--zc-font-ui);
-  color: var(--zc-text-muted);
+  font-size: 0.92rem;
+  padding: 1.5rem 1rem 1.5rem 1.25rem;
 }
 
+/* The component title doubles as a section eyebrow. */
 .nav-menu h3.title {
-  font-family: var(--zc-font-display);
-  color: var(--zc-text);
-  letter-spacing: -0.01em;
+  font-family: var(--zc-font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--zc-text-faint);
+  margin-bottom: 0.85rem;
 }
+
+.nav-list { margin-left: 0; }
+.nav-list .nav-item { margin-top: 0.1rem; }
 
 .nav-list .nav-item .nav-link,
 .nav-list .nav-item .nav-text {
+  display: block;
   color: var(--zc-text-muted);
-  transition: color 0.2s var(--zc-ease);
+  padding: 0.34rem 0.6rem;
+  border-radius: 8px;
+  transition: color 0.18s var(--zc-ease), background 0.18s var(--zc-ease);
 }
 
 .nav-list .nav-item .nav-link:hover {
-  color: var(--zc-accent);
+  color: var(--zc-text-strong);
+  background: var(--zc-surface-2);
 }
 
-/* The current page gets the accent plus a rail, so position is obvious at a
-   glance rather than only on close reading. */
+/* Current page: tinted pill plus the accent, so position reads at a glance
+   rather than needing to be read. */
 .nav-menu .is-current-page > .nav-link,
 .nav-menu .is-current-page > .nav-text {
   color: var(--zc-accent);
   font-weight: 600;
+  background: color-mix(in srgb, var(--zc-accent-strong) 12%, transparent);
   box-shadow: inset 2px 0 0 var(--zc-accent-strong);
+}
+
+/* Nested groups get a hairline spine so depth reads structurally. */
+.nav-list .nav-list {
+  margin-left: 0.55rem;
   padding-left: 0.6rem;
+  border-left: 1px solid var(--zc-border);
 }
 
-.nav-panel-explore .context {
-  background: var(--zc-surface-2);
-  border-top: 1px solid var(--zc-border);
-  color: var(--zc-text-muted);
-}
+.nav-item-toggle { background: none; opacity: 0.45; transition: opacity 0.18s var(--zc-ease); }
+.nav-item:hover > .nav-item-toggle { opacity: 1; }
 
-/* -------------------------------------------------------------- toolbar */
+/* A single unversioned component has nothing to switch between, so the version
+   selector at the foot of the sidebar is chrome with no function. */
+.nav-panel-explore { display: none; }
 
+/* ----------------------------------------------------------------- toolbar */
+
+/* Sticky, so it needs a real background: transparent here lets the article
+   scroll visibly underneath the breadcrumbs. */
 .toolbar {
-  background: transparent;
+  background: var(--zc-bg);
+  background: color-mix(in srgb, var(--zc-bg) 85%, transparent);
+  backdrop-filter: saturate(150%) blur(14px);
   border-bottom: 1px solid var(--zc-border);
-  color: var(--zc-text-muted);
+  color: var(--zc-text-faint);
   box-shadow: none;
+  font-size: 0.84rem;
 }
 
-.toolbar a {
-  color: var(--zc-text-muted);
-}
+.toolbar a { color: var(--zc-text-faint); }
+.toolbar a:hover { color: var(--zc-accent); }
 
-.toolbar a:hover {
-  color: var(--zc-accent);
-}
+/* Breadcrumbs restate the page title one line below it. Keep the home icon for
+   orientation and drop the redundant trail. */
+.breadcrumbs ul li:not(:first-child) { display: none; }
+.breadcrumbs ul li::after { display: none; }
 
-.breadcrumbs li::after {
-  color: var(--zc-border);
-}
+.edit-this-page a { font-weight: 500; }
 
-/* --------------------------------------------------------------- article */
+/* ----------------------------------------------------------------- article */
+
+/* The stock content column pins itself to the left of a wide viewport, leaving a
+   dead gutter before the table of contents. Centre it and give it room. */
+.content { justify-content: center; }
 
 .doc {
   color: var(--zc-text);
-  max-width: 52rem;
+  max-width: 47rem;
+  margin: 0 auto;
+  padding: 2.75rem 2rem 4rem;
+  font-size: 1rem;
+  line-height: 1.72;
 }
 
-.doc h1,
-.doc h2,
-.doc h3,
-.doc h4,
-.doc h5,
-.doc h6 {
+@media screen and (min-width: 1600px) {
+  .doc { max-width: 50rem; }
+}
+
+.doc > h1.page:first-child { margin-top: 0; }
+
+/* Type scale. The stock scale is nearly flat, so a page title barely reads as
+   one; these steps are deliberately further apart. */
+.doc h1, .doc h2, .doc h3, .doc h4, .doc h5, .doc h6 {
   font-family: var(--zc-font-display);
-  color: var(--zc-text);
-  letter-spacing: -0.02em;
+  color: var(--zc-text-strong);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 
 .doc h1.page {
-  font-size: clamp(1.9rem, 1.4rem + 1.8vw, 2.6rem);
-  line-height: 1.15;
-  margin-bottom: 1.25rem;
+  font-size: clamp(2.35rem, 1.9rem + 2.1vw, 3.1rem);
+  line-height: 1.03;
+  letter-spacing: -0.035em;
+  margin-bottom: 0.65rem;
 }
 
-/* Section headings get the studio's hairline motif: a teal lead-in that fades
-   into a faint rule. The upstream UI draws a hard grey border here and pulls it
-   1rem wider than the text with negative margins; both are replaced, or the two
-   rules stack into a visible double line. The :not(.discrete) selector is
-   required to match upstream's specificity. */
+/* The paragraph after the title carries the page's promise, so it gets size and
+   a softer colour rather than being indistinguishable body copy. */
+.doc h1.page + .paragraph > p {
+  font-size: 1.16rem;
+  line-height: 1.6;
+  color: var(--zc-text-muted);
+  margin-bottom: 2rem;
+}
+
+/* Upstream rules h2 with a hard border pulled 1rem wider than the text via
+   negative margins. Both are replaced. An earlier attempt left a short accent
+   dash under each heading which read as a rendering artifact, so separation is
+   now space and weight rather than a line. :not(.discrete) matches upstream's
+   specificity. */
 .doc h2:not(.discrete) {
   border-bottom: 0;
-  margin-left: 0;
-  margin-right: 0;
-  padding: 0 0 0.5rem;
-  position: relative;
+  margin: 3.25rem 0 0.9rem;
+  padding: 0;
+  font-size: 1.58rem;
+  font-weight: 600;
 }
 
-.doc h2:not(.discrete)::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    var(--zc-accent-strong) 0,
-    var(--zc-accent-strong) 2.5rem,
-    var(--zc-border) 2.5rem,
-    transparent 100%
-  );
+.doc h3 { margin-top: 2.25rem; font-size: 1.16rem; font-weight: 600; }
+.doc h4 { margin-top: 1.75rem; font-size: 1rem; font-weight: 600; color: var(--zc-text); }
+
+.doc .paragraph p, .doc li, .doc dd { color: var(--zc-text); }
+.doc .paragraph p { margin: 0.9rem 0; }
+.doc strong { color: var(--zc-text-strong); font-weight: 600; }
+
+.doc ul, .doc ol { margin-left: 1.1rem; }
+.doc li { margin: 0.35rem 0; }
+.doc li::marker { color: var(--zc-text-faint); }
+
+.doc dl { margin: 1.25rem 0; }
+.doc dt,
+.doc .dlist dt {
+  font-family: var(--zc-font-display);
+  font-weight: 600;
+  font-style: normal;
+  color: var(--zc-text-strong);
+  margin-top: 1.1rem;
 }
+.doc dd { margin-left: 0; padding-left: 1rem; border-left: 2px solid var(--zc-border); }
 
-.doc p,
-.doc li,
-.doc dd {
-  color: var(--zc-text);
-}
+/* -------------------------------------------------------------------- code */
 
-.doc .paragraph p {
-  line-height: 1.65;
-}
+.doc code, .doc pre { font-family: var(--zc-font-mono); }
 
-/* ------------------------------------------------------------------ code */
-
-.doc code,
-.doc pre {
-  font-family: var(--zc-font-mono);
-}
-
-.doc p code,
-.doc li code,
-.doc td code,
-.doc th code {
+.doc p code, .doc li code, .doc td code, .doc th code, .doc dd code, .doc dt code {
   background: var(--zc-surface-2);
   border: 1px solid var(--zc-border);
   border-radius: 6px;
   color: var(--zc-accent);
-  padding: 0.1em 0.36em;
-  font-size: 0.88em;
+  padding: 0.12em 0.38em;
+  font-size: 0.86em;
 }
 
-.doc pre {
-  background: transparent;
-  border: 0;
-  border-radius: var(--zc-radius-sm);
-}
+.doc pre { background: transparent; border: 0; }
 
+.doc .listingblock, .doc .literalblock { margin: 1.5rem 0; }
 .doc .listingblock > .content,
-.doc .literalblock > .content {
-  background: transparent;
-}
+.doc .literalblock > .content { background: transparent; position: relative; }
 
 /* Upstream paints the code surface with `.doc pre.highlight>code` and friends at
-   a specificity `.doc pre code` cannot reach, so the same grouped selector is
-   restated here. Without this the block keeps a #fafafa background and the text
-   sits white-on-white. */
+   a specificity `.doc pre code` cannot reach, so the grouped selector is
+   restated. Without this the block keeps a #fafafa background and light-theme
+   syntax colours on a dark canvas. */
 .doc .listingblock pre:not(.highlight),
 .doc .literalblock pre,
 .doc pre.highlight > code {
+  overflow-x: auto;
   background: var(--zc-surface);
   color: var(--zc-text);
+  border: 1px solid var(--zc-border);
   border-radius: var(--zc-radius-sm);
-  box-shadow: inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm);
-  padding: 0.9em 1em;
+  box-shadow: var(--zc-shadow-sm);
+  padding: 1.1rem 1.15rem;
+  font-size: 0.875rem;
+  line-height: 1.62;
 }
 
-/* ------------------------------------------------------- syntax highlighting */
-
-.doc .hljs-comment,
-.doc .hljs-quote {
-  color: var(--zc-syn-comment);
-  font-style: italic;
-}
-
-.doc .hljs-keyword,
-.doc .hljs-selector-tag,
-.doc .hljs-subst,
-.doc .hljs-built_in,
-.doc .hljs-builtin-name {
-  color: var(--zc-syn-keyword);
+/* The language, top-right, so yaml and console are distinguishable at a glance.
+   Console is excluded: its prompt already says what it is. */
+.doc .listingblock pre.highlight > code[data-lang]:not([data-lang="console"])::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  font-family: var(--zc-font-ui);
+  font-size: 0.66rem;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zc-text-faint);
+  pointer-events: none;
 }
-
-.doc .hljs-string,
-.doc .hljs-doctag,
-.doc .hljs-link,
-.doc .hljs-regexp {
-  color: var(--zc-syn-string);
-}
-
-.doc .hljs-literal,
-.doc .hljs-number,
-.doc .hljs-tag .hljs-attr,
-.doc .hljs-template-variable,
-.doc .hljs-variable,
-.doc .hljs-bullet,
-.doc .hljs-symbol {
-  color: var(--zc-syn-number);
-}
-
-/* YAML keys land on .hljs-attr and .hljs-name. They are the most-read tokens in
-   this documentation, so they get full-strength text rather than an accent. */
-.doc .hljs-attribute,
-.doc .hljs-attr,
-.doc .hljs-name,
-.doc .hljs-tag {
-  color: var(--zc-syn-name);
-  font-weight: 500;
-}
-
-.doc .hljs-section,
-.doc .hljs-selector-id,
-.doc .hljs-title,
-.doc .hljs-type,
-.doc .hljs-class .hljs-title {
-  color: var(--zc-syn-title);
-  font-weight: 600;
-}
-
-/* The console prompt. Dimmed and unselectable so copying a command does not
-   pick up the `$`. */
-.doc .hljs-meta {
-  color: var(--zc-syn-meta);
-  font-weight: 400;
-}
-
-.doc .hljs-deletion { background: rgba(185, 28, 28, 0.22); }
-.doc .hljs-addition { background: rgba(45, 212, 191, 0.16); }
 
 .doc .title {
   color: var(--zc-text-muted);
   font-family: var(--zc-font-ui);
   font-style: normal;
   font-weight: 500;
+  font-size: 0.88rem;
+  margin-bottom: 0.45rem;
 }
 
-/* ---------------------------------------------------------------- tables */
+/* --------------------------------------------------------- syntax highlight */
 
+.doc .hljs-comment, .doc .hljs-quote { color: var(--zc-syn-comment); font-style: italic; }
+
+.doc .hljs-keyword, .doc .hljs-selector-tag, .doc .hljs-subst,
+.doc .hljs-built_in, .doc .hljs-builtin-name {
+  color: var(--zc-syn-keyword); font-weight: 600;
+}
+
+.doc .hljs-string, .doc .hljs-doctag, .doc .hljs-link, .doc .hljs-regexp {
+  color: var(--zc-syn-string);
+}
+
+.doc .hljs-literal, .doc .hljs-number, .doc .hljs-tag .hljs-attr,
+.doc .hljs-template-variable, .doc .hljs-variable, .doc .hljs-bullet,
+.doc .hljs-symbol { color: var(--zc-syn-number); }
+
+/* YAML keys land on .hljs-attr and .hljs-name and are the most-read tokens in
+   this documentation, so they get full-strength text rather than an accent. */
+.doc .hljs-attribute, .doc .hljs-attr, .doc .hljs-name, .doc .hljs-tag {
+  color: var(--zc-syn-name); font-weight: 500;
+}
+
+.doc .hljs-section, .doc .hljs-selector-id, .doc .hljs-title,
+.doc .hljs-type, .doc .hljs-class .hljs-title {
+  color: var(--zc-syn-title); font-weight: 600;
+}
+
+.doc .hljs-meta { color: var(--zc-syn-meta); font-weight: 400; }
+.doc .hljs-deletion { background: rgba(185, 28, 28, 0.22); }
+.doc .hljs-addition { background: rgba(45, 212, 191, 0.16); }
+
+/* ------------------------------------------------------------------ tables */
+
+/* Ruling every cell is the most dated element of the stock UI. Horizontal rules
+   only, a quiet header, and room to breathe. */
 .doc table.tableblock {
-  border-color: var(--zc-border);
+  border: 0;
+  border-collapse: collapse;
   font-size: 0.94rem;
+  margin: 1.6rem 0;
+  width: 100%;
 }
 
 .doc table.tableblock thead th {
-  background: var(--zc-surface-2);
-  color: var(--zc-text);
-  font-family: var(--zc-font-display);
+  background: transparent;
+  color: var(--zc-text-faint);
+  font-family: var(--zc-font-ui);
+  font-size: 0.7rem;
   font-weight: 600;
-  border-color: var(--zc-border);
-}
-
-.doc table.tableblock td,
-.doc table.tableblock th {
-  border-color: var(--zc-border);
-}
-
-.doc table.tableblock tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--zc-surface) 55%, transparent);
-}
-
-/* ------------------------------------------------------------ admonitions */
-
-/* Upstream makes `td.content` the visible box (it carries background:#fafafa at
-   a specificity of 0,3,2) and positions the label chip *outside* that box with
-   absolute positioning plus a translate. So the content cell is styled as the
-   card here, and the wrapper stays transparent with no overflow clipping —
-   `overflow: hidden` on the wrapper cuts the chip in half. */
-.doc .admonitionblock {
-  background: transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
   border: 0;
-  box-shadow: none;
-  margin: 1.75rem 0 0;
+  border-bottom: 1px solid var(--zc-border-strong);
+  padding: 0 0.85rem 0.6rem;
 }
 
-.doc .admonitionblock > table {
-  background: transparent;
+.doc table.tableblock td, .doc table.tableblock th {
+  border: 0;
+  border-bottom: 1px solid var(--zc-border);
+  padding: 0.7rem 0.85rem;
+  vertical-align: top;
 }
+
+.doc table.tableblock tbody tr:last-child td { border-bottom: 0; }
+.doc table.tableblock tbody tr:nth-child(even) { background: transparent; }
+.doc table.tableblock tbody tr:hover { background: var(--zc-surface); }
+
+/* -------------------------------------------------------------- admonitions */
+
+/* Upstream makes td.content the visible box (its background sits at 0,3,2
+   specificity) and positions the label chip *outside* it with a translate, so
+   the content cell is styled as the card and the wrapper must not clip. */
+.doc .admonitionblock { background: transparent; border: 0; box-shadow: none; margin: 1.9rem 0 0; }
+.doc .admonitionblock > table { background: transparent; }
 
 .doc .admonitionblock td.content {
   background: var(--zc-surface);
   color: var(--zc-text);
-  border: 0;
+  border: 1px solid var(--zc-border);
   border-radius: var(--zc-radius-sm);
-  box-shadow: inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm);
+  box-shadow: var(--zc-shadow-sm);
+  padding: 1.05rem 1.15rem 0.9rem;
+  font-size: 0.95rem;
 }
 
-.doc .admonitionblock td.icon {
-  border: 0;
-}
+.doc .admonitionblock td.icon { border: 0; }
 
-/* Colour carries the severity: cyan informs, teal advises, indigo insists,
-   amber cautions. The chip text is the near-black brand contrast colour, since
-   every chip background is a bright accent. */
 .doc .admonitionblock td.icon i {
-  font-family: var(--zc-font-display);
+  font-family: var(--zc-font-ui);
   font-style: normal;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  border-radius: 7px;
   color: var(--zc-accent-contrast);
   box-shadow: var(--zc-shadow-sm);
 }
@@ -508,47 +552,66 @@ a:hover {
 .doc .admonitionblock td.icon i.icon-warning,
 .doc .admonitionblock td.icon i.icon-caution { background-color: var(--zc-amber); }
 
-/* A matching rail down the left edge of the card, so severity is legible even
-   when the chip has scrolled out of view on a long note. */
-.doc .admonitionblock.note td.content { box-shadow: inset 3px 0 0 var(--zc-cyan), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
-.doc .admonitionblock.tip td.content { box-shadow: inset 3px 0 0 var(--zc-accent-strong), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
-.doc .admonitionblock.important td.content { box-shadow: inset 3px 0 0 var(--zc-indigo), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
+/* A rail in the matching colour, so severity survives the chip scrolling away. */
+.doc .admonitionblock.note td.content { border-left: 3px solid var(--zc-cyan); }
+.doc .admonitionblock.tip td.content { border-left: 3px solid var(--zc-accent-strong); }
+.doc .admonitionblock.important td.content { border-left: 3px solid var(--zc-indigo); }
 .doc .admonitionblock.warning td.content,
-.doc .admonitionblock.caution td.content { box-shadow: inset 3px 0 0 var(--zc-amber), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
+.doc .admonitionblock.caution td.content { border-left: 3px solid var(--zc-amber); }
 
-/* Nested code inside a note sits on the surface-2 tone so it stays distinct
-   from the card it is inside. */
 .doc .admonitionblock td.content .listingblock pre:not(.highlight),
-.doc .admonitionblock td.content pre.highlight > code {
-  background: var(--zc-surface-2);
-}
+.doc .admonitionblock td.content pre.highlight > code { background: var(--zc-surface-2); }
 
-/* --------------------------------------------------------- toc and footer */
+/* --------------------------------------------------------------------- toc */
+
+.toc.sidebar { border-left: 0; }
+.toc .toc-menu { padding-top: 2.9rem; }
 
 .toc .toc-menu h3 {
-  font-family: var(--zc-font-display);
-  color: var(--zc-text-muted);
+  font-family: var(--zc-font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--zc-text-faint);
+  margin-bottom: 0.6rem;
 }
+
+.toc .toc-menu ul { border-left: 1px solid var(--zc-border); }
 
 .toc .toc-menu a {
-  color: var(--zc-text-muted);
-  border-left: 1px solid var(--zc-border);
+  color: var(--zc-text-faint);
+  border-left: 0;
+  padding: 0.24rem 0 0.24rem 0.75rem;
+  margin-left: -1px;
+  font-size: 0.855rem;
+  line-height: 1.45;
+  transition: color 0.18s var(--zc-ease);
 }
 
-.toc .toc-menu a:hover,
+.toc .toc-menu a:hover { color: var(--zc-text); }
+
 .toc .toc-menu a.is-active {
   color: var(--zc-accent);
-  border-left-color: var(--zc-accent-strong);
+  border-left: 2px solid var(--zc-accent-strong);
+  font-weight: 500;
 }
 
-.pagination a {
-  color: var(--zc-accent);
+/* ---------------------------------------------------- pagination and footer */
+
+nav.pagination {
+  margin-top: 3rem;
+  border-top: 1px solid var(--zc-border);
+  padding-top: 1.25rem;
 }
+
+nav.pagination a { color: var(--zc-accent); font-weight: 500; }
 
 .footer {
   background: transparent;
   border-top: 1px solid var(--zc-border);
-  color: var(--zc-text-muted);
+  color: var(--zc-text-faint);
+  padding: 1.5rem 2rem;
 }
 
 .zc-footer {
@@ -557,26 +620,126 @@ a:hover {
   gap: 0.5rem 1.5rem;
   align-items: baseline;
   justify-content: space-between;
-  font-size: 0.88rem;
-  color: var(--zc-text-muted);
+  font-size: 0.85rem;
+  max-width: 76rem;
+  margin: 0 auto;
 }
 
-.zc-footer a {
-  color: var(--zc-text-muted);
-}
-
-.zc-footer a:hover {
-  color: var(--zc-accent);
-}
-
+.zc-footer a { color: var(--zc-text-muted); }
+.zc-footer a:hover { color: var(--zc-accent); }
 .zc-footer .zc-tagline {
   font-family: var(--zc-font-display);
+  font-weight: 600;
   color: var(--zc-text);
 }
 
-/* ------------------------------------------------------------------ print */
+/* ------------------------------------------------------ landing page extras */
+
+/* An eyebrow above the page title, from [.eyebrow]. */
+.doc .eyebrow p {
+  font-family: var(--zc-font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--zc-accent);
+  margin: 0 0 0.6rem;
+}
+
+/* The hero block, from [.hero]. */
+.doc .hero { margin: 0 0 2.5rem; padding: 0 0 2.25rem; border-bottom: 1px solid var(--zc-border); }
+.doc .hero p { font-size: 1.2rem; line-height: 1.58; color: var(--zc-text-muted); margin: 0.5rem 0; }
+.doc .hero p:first-child { color: var(--zc-text); }
+
+/* Call-to-action row, from [.cta]: the first link is solid, the rest outlined. */
+.doc .cta p { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 1.6rem 0 0; }
+
+.doc .cta a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+  border: 1px solid var(--zc-border-strong);
+  color: var(--zc-text);
+  transition: transform 0.18s var(--zc-ease), border-color 0.18s var(--zc-ease);
+}
+
+.doc .cta a:first-child {
+  background: linear-gradient(140deg, var(--zc-accent-strong), var(--zc-cyan));
+  border-color: transparent;
+  color: var(--zc-accent-contrast);
+  box-shadow: 0 10px 26px -14px var(--zc-accent-glow);
+}
+
+.doc .cta a:hover { transform: translateY(-1px); border-color: var(--zc-accent-strong); }
+.doc .cta a:first-child:hover { color: var(--zc-accent-contrast); }
+
+/* Card grid, from [.cards] on an unordered list. A list is used rather than a
+   description list because dt and dd are separate grid items: gridding a dl puts
+   each title in one column and its body in another instead of stacking them. */
+.doc .cards .ulist ul,
+.doc .cards ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.85rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doc .cards li {
+  margin: 0;
+  padding: 1.05rem 1.15rem 1.1rem;
+  background: var(--zc-surface);
+  border: 1px solid var(--zc-border);
+  border-radius: var(--zc-radius-sm);
+  color: var(--zc-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  transition: border-color 0.18s var(--zc-ease), transform 0.18s var(--zc-ease);
+}
+
+.doc .cards li:hover { border-color: var(--zc-border-strong); transform: translateY(-1px); }
+
+.doc .cards li > p { margin: 0; }
+
+/* The card title comes from a hard line break in the source. It is already a
+   block, so the <br> only adds a gap. */
+.doc .cards li br { display: none; }
+
+/* The first strong or link in a card is its heading. */
+.doc .cards li strong,
+.doc .cards li > p > a:first-child {
+  display: block;
+  font-family: var(--zc-font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--zc-text-strong);
+  text-decoration: none;
+  margin-bottom: 0.4rem;
+}
+
+.doc .cards li > p > a:first-child::after {
+  content: " \2192";
+  color: var(--zc-accent);
+}
+
+.doc .cards li:hover > p > a:first-child { color: var(--zc-accent); }
+
+/* --------------------------------------------------------------- responsive */
+
+@media screen and (max-width: 1023px) {
+  .doc { padding: 2rem 1.25rem 3rem; max-width: none; }
+  .doc h1.page { font-size: clamp(1.9rem, 1.4rem + 3vw, 2.4rem); }
+  .zc-wordmark .zc-product { display: none; }
+}
 
 @media print {
   body::before { display: none; }
   body { background: #fff; color: #000; }
+  .doc { max-width: none; }
 }

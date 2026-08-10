@@ -1,58 +1,18 @@
 = mailctl
 :description: Declarative email configuration for custom domains.
 
-mailctl reconciles the email configuration of one or more domains from a single
-YAML file: the DNS records, the mailboxes, the aliases, the routing rules and the
-deliverability policies. You describe the state you want; mailctl works out what
-has to change and shows you before it changes anything.
+[.hero]
+--
+One YAML file describes the DNS records, mailboxes, aliases, routing and
+deliverability policy for every domain you own.
 
-It is a single Go binary with one non-stdlib dependency. There is no daemon, no
-state file and no lock: the live provider APIs are the state.
+mailctl reads live state from each provider, diffs it against that file, prints an
+ordered plan, and applies exactly what it printed. A single Go binary with one
+non-stdlib dependency — no daemon, no state file, no lock.
+--
 
-== What it manages
-
-[cols="1,3"]
-|===
-| Domains | Registers a domain with a mail provider and completes the provider's ownership verification.
-| DNS | Publishes MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI records in Cloudflare, and refuses to clobber records it does not recognise.
-| Mailboxes | Creates real mailboxes at the provider, generating a credential when you do not supply one and reporting it exactly once.
-| Aliases and catch-all | Where the provider's API supports them.
-| Deliverability | Merges every provider's SPF requirement into exactly one TXT record, and can deploy a Cloudflare Worker to serve an MTA-STS policy.
-|===
-
-== The model
-
-Three ideas carry the whole tool.
-
-Desired state:: The YAML file is the only description of what should exist.
-Nothing is stored elsewhere, so there is no drift between mailctl's idea of the
-world and the world.
-
-Plan then apply:: `mailctl plan` reads live state from every provider, diffs it
-against the config, and prints an ordered list of actions. It changes nothing.
-`mailctl apply` executes exactly that list.
-
-Idempotence:: Running `apply` twice is the same as running it once. A converged
-domain reports `No changes.` This is not a nicety: it is what makes the tool safe
-to run from a terminal at any time, and it is verified against live providers
-rather than only in tests.
-
-== A worked example
-
-[source,yaml]
-----
-version: 1
-
-cloudflare:
-  accountId: ${CLOUDFLARE_ACCOUNT_ID}
-
-domains:
-  - name: example.com
-    mail:
-      provider: purelymail
-    mailboxes:
-      - address: contact@example.com
-----
+[.cta]
+xref:quickstart.adoc[Get started] xref:install.adoc[Install] https://github.com/zoolcoder/mailctl[GitHub]
 
 [source,console]
 ----
@@ -63,7 +23,6 @@ example.com
   CREATE  dns         MX example.com -> mailserver.purelymail.com  [purelymail]
   CREATE  dns         TXT example.com -> v=spf1 include:_spf.purelymail.com ~all
   CREATE  dns         CNAME purelymail1._domainkey.example.com
-  ...
   CREATE  domain      add example.com  [purelymail]
   CREATE  mailbox     create contact@example.com  [purelymail]
 
@@ -72,33 +31,93 @@ example.com
 Run `mailctl apply` to make these changes.
 ----
 
+== What it manages
+
+[.cards]
+* *Domains* +
+Registers a domain with a mail provider and completes its ownership verification.
+* *DNS* +
+Publishes MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI records in Cloudflare,
+and refuses to clobber records it does not recognise.
+* *Mailboxes* +
+Creates real mailboxes at the provider, generating a credential when you do not
+supply one and reporting it exactly once.
+* *Deliverability* +
+Merges every provider's SPF requirement into the single TXT record RFC 7208
+permits, and can deploy a Worker to serve an MTA-STS policy.
+
+== Providers
+
+[cols="2,1,1,1,1",options="header"]
+|===
+| Provider | Inbound | Mailboxes | Aliases | Catch-all
+
+| xref:providers/purelymail.adoc[Purelymail] | yes | yes | yes | yes
+| xref:providers/ms365.adoc[Microsoft 365] | yes | yes | no | no
+| xref:providers/cloudflare.adoc[Cloudflare Email Routing] | yes | — | yes | yes
+| xref:providers/cloudflare.adoc[Cloudflare Email Sending] | outbound | — | — | —
+|===
+
+Microsoft 365 lacks aliases and catch-all not because mailctl declines to
+implement them: Graph exposes `proxyAddresses` as read-only and offers no
+catch-all surface. mailctl rejects those config blocks with an error naming the
+admin centre rather than accepting them and doing nothing.
+
+== Three ideas carry the whole tool
+
+Desired state::
+The YAML file is the only description of what should exist. Nothing is stored
+elsewhere, so there is no drift between mailctl's idea of the world and the world.
+
+Plan then apply::
+`plan` reads live state, diffs it, and prints an ordered list of actions. It
+changes nothing, and performs no I/O once planning has begun. `apply` executes
+exactly that list.
+
+Idempotence::
+Running `apply` twice is the same as running it once. A converged domain reports
+`No changes.` — which is what makes the tool safe to run from a terminal at any
+time.
+
 == What it deliberately does not do
 
 mailctl refuses to pretend. Where a provider's API cannot express something, the
-config rejects it with an error naming the admin console as the only route,
-rather than accepting the setting and ignoring it. An ignored setting reads as a
-setting that is in force, which is worse than an error.
+config rejects it with an error naming the manual route rather than accepting the
+setting and ignoring it. An ignored setting reads as a setting that is in force,
+which is worse than an error — an ignored `requireTwoFactorAuthentication` looks
+exactly like enforced two-factor authentication.
 
-Microsoft 365 is the clearest case: aliases, catch-all and DKIM enablement are
-not reachable through Microsoft Graph, so mailctl says so. See
-xref:providers/ms365.adoc[the Microsoft 365 page] for what that means in practice.
+Anything that can lose mail is deliberately awkward: deleting a mailbox needs
+`-prune` *and* `-prune-mailboxes`, then a confirmation that asks you to type the
+domain name.
 
 == Where to go next
 
-* xref:install.adoc[Install] — build the binary.
-* xref:quickstart.adoc[Quickstart] — one domain, from nothing to working mail.
-* xref:configuration.adoc[Configuration] — every key in the file.
-* xref:environment.adoc[Credentials] — how tokens and mailbox passwords are handled.
+[.cards]
+* xref:quickstart.adoc[Quickstart] +
+One domain, from nothing to working mail, including why the first apply is
+expected to stop partway.
+* xref:configuration.adoc[Configuration] +
+Every key in the file, and the validation rules that catch the common mistakes.
+* xref:commands.adoc[Commands] +
+Every command and flag, and why pruning works the way it does.
+* xref:environment.adoc[Credentials] +
+How tokens and generated mailbox passwords are handled, and the guarantees
+around them.
+* xref:deliverability.adoc[Deliverability] +
+SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI, and a sensible order to enable
+them in.
+* xref:troubleshooting.adoc[Troubleshooting] +
+The errors people actually hit, and what each one means.
 
 == The project
 
 mailctl is open source under the Apache License 2.0.
 
-* Source: https://github.com/zoolcoder/mailctl[github.com/zoolcoder/mailctl]
-* Contributing: https://github.com/zoolcoder/mailctl/blob/main/CONTRIBUTING.md[CONTRIBUTING.md] —
-  the conventions the code is held to, including the one-dependency rule and the
-  request to mutation-check any test guarding a safety property
-* Security: https://github.com/zoolcoder/mailctl/blob/main/SECURITY.md[SECURITY.md] —
-  what mailctl guarantees about credential handling, and how to report a vulnerability
-  privately
-* Licence: https://github.com/zoolcoder/mailctl/blob/main/LICENSE[Apache-2.0]
+* https://github.com/zoolcoder/mailctl[Source on GitHub]
+* https://github.com/zoolcoder/mailctl/blob/main/CONTRIBUTING.md[Contributing] —
+  the conventions the code is held to
+* https://github.com/zoolcoder/mailctl/blob/main/SECURITY.md[Security] — the
+  credential-handling guarantees, and how to report a vulnerability privately
+* https://github.com/zoolcoder/mailctl/blob/main/ROADMAP.md[Roadmap] — what is
+  planned, what is deliberately not, and why
