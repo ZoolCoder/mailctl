@@ -1,0 +1,49 @@
+= Install
+
+mailctl is a single binary with one non-stdlib dependency. There is nothing to
+configure at install time.
+
+== Requirements
+
+* Go {go-version} or newer to build.
+* A Cloudflare API token with DNS edit permission on the zones you manage.
+* A token for whichever mail provider each domain uses.
+
+== Install with go install
+
+The shortest path, if you have a Go toolchain:
+
+[source,console]
+----
+$ go install github.com/zoolcoder/mailctl/cmd/mailctl@latest
+$ mailctl version
+----
+
+== Build from source
+
+[source,console]
+----
+$ git clone https://github.com/zoolcoder/mailctl
+$ cd mailctl
+$ go build ./cmd/mailctl
+$ ./mailctl version
+----
+
+== Verify the build
+
+The test suite runs entirely offline — every provider API is faked with
+`httptest`, so no token is needed and nothing external is contacted.
+
+[source,console]
+----
+$ go test ./...
+$ gofmt -l .
+$ go vet ./...
+----
+
+A clean run means every package passes, `gofmt` prints nothing and `vet` is
+silent.
+
+== Next
+
+Create a config file and run a plan: xref:quickstart.adoc[Quickstart].

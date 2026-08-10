@@ -1,0 +1,85 @@
+= Purelymail
+
+Hosts inbound mail and mailboxes. The most complete of mailctl's providers: it
+supports mailboxes, aliases, a catch-all, application credentials and password
+recovery methods.
+
+== Configuration
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+      settings:
+        allowAccountReset: true
+        symbolicSubaddressing: false
+    mailboxes:
+      - address: contact@example.com
+        enableSearchIndexing: true
+    aliases:
+      - match: info
+        to: [contact@example.com]
+    catchAll:
+      to: [contact@example.com]
+----
+
+== The addressing trap
+
+`symbolicSubaddressing` decides what usernames are legal, and getting it wrong
+produces a confusing error.
+
+While it is **enabled**, Purelymail refuses any symbol in a username. It reads
+`first.last` as user `first` with tag `last`, so creating `first.last@example.com`
+fails with `invalidUserName` — and so does `first-last@example.com`. Only symbol-free
+names work.
+
+Set it to `false` and `first.last@example.com` becomes legal. The cost is that
+`+tag` addressing stops working across the whole domain.
+
+So the choice is: `firstname.lastname` addresses, or plus-tag addressing. Not both.
+Decide before creating mailboxes, because renaming one later means creating a new
+mailbox and migrating the mail.
+
+== Records it publishes
+
+* `MX` at the apex
+* an SPF `TXT`, merged with every other provider's requirement into one record
+* three DKIM `CNAME` records, `purelymail1` through `purelymail3`
+* an ownership `TXT` for domain verification
+* a `_dmarc` `CNAME`, *unless* your config sets `deliverability.dmarc` — in which
+case mailctl owns `_dmarc` as a TXT record and Purelymail's CNAME is skipped, so
+the two never fight over the same name
+
+== Mailbox options
+
+[cols="2,3"]
+|===
+| `enablePasswordReset` | Whether the mailbox may reset its own password.
+| `enableSearchIndexing` | Server-side search indexing.
+| `requireTwoFactorAuthentication` | Enforce 2FA on the mailbox. Note that once 2FA is on, mail clients need an application credential rather than the account password — see `apppass` in xref:../commands.adoc[Commands].
+| `sendWelcomeEmail` | Whether Purelymail sends its own welcome message.
+| `recovery` | Password-reset methods. Each entry has a `type` of `email` or `phone`, a `target`, an optional `description` and `allowMfaReset`.
+|===
+
+Recovery methods are reconciled by target, not merely by type. Removing an address
+from the config removes it at the provider, which is the point: a stale recovery
+address is a way back into the mailbox.
+
+== Client settings
+
+For reference when handing a mailbox over:
+
+[cols="1,2,1,1"]
+|===
+| | Host | Port | Security
+
+| IMAP | `imap.purelymail.com` | 993 | SSL/TLS
+| SMTP | `smtp.purelymail.com` | 465 | SSL/TLS
+| SMTP (alternate) | `smtp.purelymail.com` | 587 | STARTTLS
+| POP3 | `pop3.purelymail.com` | 995 | SSL/TLS
+|===
+
+The username is always the full email address. Prefer IMAP: POP3 downloads copies
+and leaves each device with its own divergent view.

@@ -1,0 +1,40 @@
+# Antora playbook for the mailctl documentation site.
+#
+# Build locally with:
+#   npx antora antora-playbook.yml
+# then open build/site/index.html
+#
+# The content source is this working tree rather than a remote URL, so a local
+# build documents what is checked out right now instead of what was last pushed.
+site:
+  title: mailctl
+  start_page: mailctl::index.adoc
+  robots: allow
+
+content:
+  sources:
+    - url: .
+      start_path: docs
+      branches: HEAD
+
+ui:
+  bundle:
+    url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
+    snapshot: true
+  # Brand layer over the default UI: ZoolCoder tokens, a real header, and a
+  # footer that is not the Antora boilerplate. Merged on top of the bundle, so
+  # only these four files diverge from upstream.
+  supplemental_files: ./docs/supplemental-ui
+
+asciidoc:
+  attributes:
+    experimental: ''
+    idprefix: ''
+    idseparator: '-'
+    tabsize: 2
+    # Referenced from pages so a version bump happens in one place.
+    go-version: '1.26'
+    source-highlighter: highlight.js
+
+output:
+  dir: ./build/site

@@ -1,0 +1,165 @@
+= Microsoft 365
+
+Manages a domain's Microsoft 365 mail through Microsoft Graph: registering and
+verifying the domain, publishing the DNS records the service requires, and creating
+mailboxes as licensed users.
+
+This page is unusually blunt about limits, because three things people expect are
+not reachable through Graph at all. mailctl refuses them rather than accepting them
+and doing nothing.
+
+== What Graph can and cannot do
+
+.Supported
+[cols="2,3"]
+|===
+| Capability | Endpoint
+
+| Add a domain to the tenant | `POST /domains`
+| Read the ownership record | `+GET /domains/{id}/verificationDnsRecords+`
+| Verify ownership | `+POST /domains/{id}/verify+`
+| Declare the domain's services | `+PATCH /domains/{id}+`
+| Read the required DNS records | `+GET /domains/{id}/serviceConfigurationRecords+`
+| List the domain's users | `+GET /domains/{id}/domainNameReferences/microsoft.graph.user+`
+| Create a user | `POST /users`
+| Assign a licence | `+POST /users/{id}/assignLicense+`
+| Read licence inventory | `GET /subscribedSkus`
+|===
+
+.Not supported, and why
+[cols="1,3"]
+|===
+| Aliases | Graph documents `proxyAddresses` as read-only: "you can update this property only through the Microsoft 365 admin center". Only the primary address is writable. An `aliases` block on an `ms365` domain is a validation error.
+| Catch-all | Requires an Exchange transport rule, which has no Graph surface. A `catchAll` block is a validation error.
+| DKIM enablement | The CNAME targets cannot be derived — the current format embeds a per-tenant partition character. Microsoft's own documentation says the published values "are for illustration only" and must be read from the Defender portal or Exchange Online PowerShell.
+|===
+
+mailctl could have shelled out to PowerShell for DKIM. It does not, because that
+would make `pwsh` and an Exchange module hard runtime requirements of a binary that
+otherwise has one dependency.
+
+== Setup
+
+=== 1. Register an application
+
+In Microsoft Entra, register an application and grant it **application**
+permissions with admin consent:
+
+* `Domain.ReadWrite.All`
+* `User.ReadWrite.All`
+* `Organization.Read.All`
+
+Then export the three values:
+
+[source,properties]
+----
+MS365_TENANT_ID=...
+MS365_CLIENT_ID=...
+MS365_CLIENT_SECRET=...
+----
+
+=== 2. Configure the domain
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: ms365
+      ms365:
+        license: BUSINESS_BASIC
+        usageLocation: DE
+        dkimCnames:
+          - selector1-example-com._domainkey.contoso.n-v1.dkim.mail.microsoft
+          - selector2-example-com._domainkey.contoso.n-v1.dkim.mail.microsoft
+    mailboxes:
+      - address: a.person@example.com
+        displayName: A Person
+----
+
+[cols="1,3"]
+|===
+| `license` | A `skuPartNumber` such as `BUSINESS_BASIC`, not a `skuId` GUID. The part number is stable and visible in the admin centre; the GUID is neither. Resolved against `/subscribedSkus`.
+| `usageLocation` | A two-letter ISO 3166-1 alpha-2 code. Graph will not assign a licence without it, so mailctl requires it up front rather than failing at apply time.
+| `dkimCnames` | Optional. The two targets copied once from the Defender portal, for `selector1` and `selector2` in that order. Given them, mailctl publishes and audits the two CNAMEs like any other record. Omit them and DKIM stays outside mailctl.
+|===
+
+=== 3. Apply twice
+
+The first apply is expected to do less than you might think, and this is by design
+rather than a bug.
+
+`verificationDnsRecords` and `serviceConfigurationRecords` do not exist until the
+domain has been added to the tenant, and reading state must never mutate anything.
+So the sequence is:
+
+. First apply — adds the domain to the tenant. Only the DKIM records, if
+configured, are known at this point.
+. Second apply — the ownership and service records are now readable, so DNS is
+published and the domain is verified.
+. Third apply — mailboxes are created, once the domain is verified.
+
+`mailctl plan` says so explicitly at each stage rather than leaving you to guess
+why the DNS is missing.
+
+== Mailboxes are licensed users
+
+In Microsoft 365 a mailbox is not a standalone object: it is a user with a licence.
+Creating one spends a paid seat.
+
+mailctl therefore checks seats at **plan** time, reading `/subscribedSkus` and
+refusing up front if the creates would exceed what is available:
+
+[source,console]
+----
+creating mailboxes needs 3 BUSINESS_BASIC seat(s) but only 2 are free;
+buy more seats or free some, then rerun
+----
+
+Finding that out halfway through an apply would leave some mailboxes created and
+others not.
+
+=== Three states, not two
+
+A mailbox can be absent, present but unlicensed, or present and licensed. The
+middle state exists because creating a mailbox takes two API calls — create the
+user, then assign the licence — and the second can fail on its own.
+
+mailctl handles it explicitly:
+
+[cols="1,2"]
+|===
+| Absent | Create the user and assign the licence.
+| Present, no matching licence | Assign only the licence. The user is left alone.
+| Present and licensed | Nothing to do.
+|===
+
+Without that middle case a licence failure would leave an account that exists,
+carries a generated password, and has no mailbox — while every later plan reported
+nothing to do.
+
+=== One-time passwords
+
+A created user gets `forceChangePasswordNextSignIn`, so a mailctl-generated
+credential is genuinely single-use: you hand it over, the recipient replaces it on
+first sign-in.
+
+== Pruning is deliberately awkward
+
+Deleting a Microsoft 365 user destroys that person's mail, recoverable for 30 days.
+So a deletion needs `-prune` **and** `-prune-mailboxes`, and then the confirmation
+prompt asks you to type the domain name.
+
+Unmanaged mailboxes — present in the tenant, absent from your config — are reported
+on every `plan` whether or not you pass those flags, so you learn about drift
+without reaching for the destructive option.
+
+Deletion addresses users by Graph object id, never by email address. Graph resolves
+`+/users/{...}+` by id or `userPrincipalName` only, so deleting by an address could
+miss, or match a different user whose UPN happened to equal it.
+
+== Federated domains
+
+mailctl manages managed domains. If a domain's `authenticationType` is `Federated`,
+`plan` reports a note: its users authenticate elsewhere, so user management here is
+not the whole picture.

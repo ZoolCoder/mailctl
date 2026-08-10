@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a capability or a provider.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [ROADMAP.md](../blob/main/ROADMAP.md) first — it records what
+        is planned, what is deliberately not planned, and why.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you unable to do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like mailctl to do
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints you have considered
+      options:
+        - label: This would not require a second non-stdlib dependency, or I have explained why one is unavoidable.
+        - label: This would not require `plan` to perform I/O or to mutate anything.
+        - label: If a provider cannot express part of this, mailctl should reject that config rather than ignore it.

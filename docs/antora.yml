@@ -1,0 +1,7 @@
+name: mailctl
+title: mailctl
+# A single unversioned component: mailctl is one tool with one current version,
+# so versioned docs would add navigation noise for no benefit.
+version: ~
+nav:
+  - modules/ROOT/nav.adoc

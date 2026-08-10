@@ -1,0 +1,151 @@
+= Commands
+
+Every command reads the same config file and the same environment. `plan` is the
+default when no command is given.
+
+== plan
+
+Reads live state from every provider and every zone, diffs it against the config,
+and prints an ordered list of actions. It performs no writes.
+
+[source,console]
+----
+$ mailctl plan
+$ mailctl plan -domain example.com
+----
+
+An empty diff prints `No changes. The live configuration already matches the
+config file.` Anything else is a list you should read before applying.
+
+Planning is pure: providers do their reading first, then compute actions with no
+further I/O. That is why `plan` can be trusted not to change anything.
+
+== apply
+
+Executes exactly the plan that `plan` would print.
+
+[source,console]
+----
+$ mailctl apply
+$ mailctl apply -domain example.com -secrets-out new.secrets
+----
+
+Actions run in dependency order — DNS before domain verification, verification
+before mailboxes — and execution stops at the first failure. The error names the
+provider, the object, and how many actions had already succeeded, because that is
+what tells you whether to fix and rerun or investigate.
+
+If the plan contains any deletion, `apply` asks you to type the domain name before
+proceeding. `-yes` skips that prompt and should be reserved for plans you have
+already read.
+
+== audit
+
+Checks the published records through a real DNS resolver and reports the
+provider's own view of deliverability alongside.
+
+[source,console]
+----
+$ mailctl audit -domain example.com
+----
+
+This answers a different question from `plan`. `plan` compares config against the
+provider's API; `audit` asks whether the world can actually see the result. A
+record the provider believes it published but which never reached DNS shows up
+here and nowhere else.
+
+== import
+
+Prints a config block describing what already exists at a provider, so an
+existing domain can be adopted without hand-writing YAML.
+
+[source,console]
+----
+$ mailctl import -domain example.com -provider purelymail
+----
+
+It writes to stdout and changes nothing. Review the block, then paste it into your
+config.
+
+== mailbox
+
+[source,console]
+----
+$ mailctl mailbox add    contact@example.com
+$ mailctl mailbox add    contact@example.com -password-env CONTACT_PASSWORD
+$ mailctl mailbox rm     contact@example.com
+$ mailctl mailbox passwd contact@example.com
+----
+
+`mailbox add` edits the config file — preserving your comments and formatting —
+and then applies. `mailbox rm` edits the config *only*; it never deletes a mailbox
+at the provider, because removing a line from a file should not destroy someone's
+mail. To delete the mailbox itself, remove it from the config and then run
+`apply -prune -prune-mailboxes`.
+
+`mailbox passwd` changes the credential at the provider. Omit `-password-env` and
+mailctl generates one.
+
+== alias
+
+[source,console]
+----
+$ mailctl alias add info -to contact@example.com -alias-domain example.com
+$ mailctl alias rm  info -alias-domain example.com
+----
+
+As with mailboxes, `add` edits the config and applies, while `rm` edits the config
+only.
+
+Aliases are not available on every provider. Microsoft 365 rejects them outright —
+see xref:providers/ms365.adoc[Microsoft 365].
+
+== apppass
+
+[source,console]
+----
+$ mailctl apppass create contact@example.com -name "phone"
+$ mailctl apppass rm     contact@example.com -name "phone"
+----
+
+Creates or removes an application credential for a mailbox, where the provider
+supports them. Useful when a mailbox has two-factor authentication enabled and a
+mail client therefore cannot use the account password.
+
+== Flags
+
+[cols="1,1,3"]
+|===
+| Flag | Applies to | Meaning
+
+| `-config` | all | Config file path. Defaults to `mailctl.yaml`.
+| `-domain` | all | Limit the run to this domain. Repeat for several. Omit to process every domain in the file.
+| `-yes` | apply | Skip the deletion confirmation prompt.
+| `-prune` | plan, apply | Plan deletion of provider-side objects absent from the config.
+| `-prune-mailboxes` | plan, apply | Allow `-prune` to delete mailboxes. Has no effect without `-prune`, and is rejected if given alone.
+| `-replace-dns` | plan, apply | Replace conflicting MX, SPF, DKIM and DMARC records instead of failing.
+| `-secrets-out` | apply | Write generated credentials to this file, mode `0600`. Refuses an existing path.
+| `-provider` | import | Which provider to read from.
+| `-zone` | import | Cloudflare zone name, defaulting to the domain.
+| `-password-env` | mailbox add, passwd | Environment variable holding the credential.
+| `-alias-domain` | alias add, rm | Which domain the alias belongs to.
+| `-to` | alias add | Alias target address. Repeat for several.
+| `-name` | apppass | Label for the application credential.
+|===
+
+Flags scoped to one command are rejected on the others rather than ignored. That
+matters: a `-prune` accepted but unused by `mailbox add` once caused a mailbox
+never named on the command line to be deleted.
+
+== On pruning
+
+`-prune` is how you remove things. It is deliberately awkward for mailboxes.
+
+Deleting a mailbox destroys its mail, so mailctl requires two flags rather than
+one: `-prune` says "remove what the config no longer mentions", and
+`-prune-mailboxes` says "yes, including mailboxes". On top of that the deletion is
+destructive, so the confirmation prompt asks you to type the domain name.
+
+A catch-all is never pruned. Omitting `catchAll` from the config means "leave
+whatever exists alone", not "delete it" — because the two readings are
+indistinguishable in YAML and one of them loses mail.

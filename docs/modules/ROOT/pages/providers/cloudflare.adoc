@@ -1,0 +1,71 @@
+= Cloudflare routing and sending
+
+Two providers, both backed by Cloudflare Email. They solve different halves of the
+problem and can be combined.
+
+== cfrouting — inbound
+
+Cloudflare Email Routing forwards mail arriving at your domain to addresses
+elsewhere. It hosts no mailboxes: there is nothing to log into.
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: cfrouting
+    aliases:
+      - match: info
+        to: [somewhere@gmail.com]
+    catchAll:
+      to: [somewhere@gmail.com]
+----
+
+Because it hosts nothing, a `mailboxes` block on a `cfrouting` domain is a
+validation error rather than a silently ignored section.
+
+`cfrouting` is an inbound provider: it publishes MX records, so it cannot share a
+domain with `purelymail` or `ms365`.
+
+=== Destination verification
+
+A forwarding target must be verified by its owner before Cloudflare will deliver to
+it — Cloudflare emails the destination a confirmation link. mailctl reports an
+unverified destination in `plan` output rather than reporting success over a rule
+that silently drops mail.
+
+== cfsending — outbound
+
+Cloudflare Email Sending gives a subdomain the records needed to send through
+Cloudflare. It is outbound only, so it pairs with any inbound provider:
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: [purelymail, cfsending]
+----
+
+Here Purelymail owns inbound mail and mailboxes, while `cfsending` contributes the
+records for outbound sending. Both providers' SPF requirements merge into a single
+TXT record, as RFC 7208 requires.
+
+== Which to choose
+
+[cols="1,3"]
+|===
+| You want real mailboxes | `purelymail` or `ms365`. Not `cfrouting`.
+| You want to forward a few addresses to an existing inbox | `cfrouting`. No mailbox to pay for or maintain.
+| You want an application to send as your domain | `cfsending`, alongside whatever handles inbound.
+|===
+
+== DNS ownership
+
+Every record mailctl publishes in Cloudflare is one it will also defend and, with
+`-prune`, remove. Records it does not recognise are left alone — and a conflicting
+record it did not create causes a plan to fail rather than be silently overwritten.
+Pass `-replace-dns` to override that, once you have read what would be replaced.
+
+CNAME records are always published DNS-only, never proxied. A proxied CNAME would
+route mail discovery through Cloudflare's HTTP proxy and break it.

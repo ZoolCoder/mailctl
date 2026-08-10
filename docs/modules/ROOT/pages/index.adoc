@@ -1,0 +1,104 @@
+= mailctl
+:description: Declarative email configuration for custom domains.
+
+mailctl reconciles the email configuration of one or more domains from a single
+YAML file: the DNS records, the mailboxes, the aliases, the routing rules and the
+deliverability policies. You describe the state you want; mailctl works out what
+has to change and shows you before it changes anything.
+
+It is a single Go binary with one non-stdlib dependency. There is no daemon, no
+state file and no lock: the live provider APIs are the state.
+
+== What it manages
+
+[cols="1,3"]
+|===
+| Domains | Registers a domain with a mail provider and completes the provider's ownership verification.
+| DNS | Publishes MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI records in Cloudflare, and refuses to clobber records it does not recognise.
+| Mailboxes | Creates real mailboxes at the provider, generating a credential when you do not supply one and reporting it exactly once.
+| Aliases and catch-all | Where the provider's API supports them.
+| Deliverability | Merges every provider's SPF requirement into exactly one TXT record, and can deploy a Cloudflare Worker to serve an MTA-STS policy.
+|===
+
+== The model
+
+Three ideas carry the whole tool.
+
+Desired state:: The YAML file is the only description of what should exist.
+Nothing is stored elsewhere, so there is no drift between mailctl's idea of the
+world and the world.
+
+Plan then apply:: `mailctl plan` reads live state from every provider, diffs it
+against the config, and prints an ordered list of actions. It changes nothing.
+`mailctl apply` executes exactly that list.
+
+Idempotence:: Running `apply` twice is the same as running it once. A converged
+domain reports `No changes.` This is not a nicety: it is what makes the tool safe
+to run from a terminal at any time, and it is verified against live providers
+rather than only in tests.
+
+== A worked example
+
+[source,yaml]
+----
+version: 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+    mailboxes:
+      - address: contact@example.com
+----
+
+[source,console]
+----
+$ mailctl plan
+
+example.com
+-----------
+  CREATE  dns         MX example.com -> mailserver.purelymail.com  [purelymail]
+  CREATE  dns         TXT example.com -> v=spf1 include:_spf.purelymail.com ~all
+  CREATE  dns         CNAME purelymail1._domainkey.example.com
+  ...
+  CREATE  domain      add example.com  [purelymail]
+  CREATE  mailbox     create contact@example.com  [purelymail]
+
+9 actions
+
+Run `mailctl apply` to make these changes.
+----
+
+== What it deliberately does not do
+
+mailctl refuses to pretend. Where a provider's API cannot express something, the
+config rejects it with an error naming the admin console as the only route,
+rather than accepting the setting and ignoring it. An ignored setting reads as a
+setting that is in force, which is worse than an error.
+
+Microsoft 365 is the clearest case: aliases, catch-all and DKIM enablement are
+not reachable through Microsoft Graph, so mailctl says so. See
+xref:providers/ms365.adoc[the Microsoft 365 page] for what that means in practice.
+
+== Where to go next
+
+* xref:install.adoc[Install] — build the binary.
+* xref:quickstart.adoc[Quickstart] — one domain, from nothing to working mail.
+* xref:configuration.adoc[Configuration] — every key in the file.
+* xref:environment.adoc[Credentials] — how tokens and mailbox passwords are handled.
+
+== The project
+
+mailctl is open source under the Apache License 2.0.
+
+* Source: https://github.com/zoolcoder/mailctl[github.com/zoolcoder/mailctl]
+* Contributing: https://github.com/zoolcoder/mailctl/blob/main/CONTRIBUTING.md[CONTRIBUTING.md] —
+  the conventions the code is held to, including the one-dependency rule and the
+  request to mutation-check any test guarding a safety property
+* Security: https://github.com/zoolcoder/mailctl/blob/main/SECURITY.md[SECURITY.md] —
+  what mailctl guarantees about credential handling, and how to report a vulnerability
+  privately
+* Licence: https://github.com/zoolcoder/mailctl/blob/main/LICENSE[Apache-2.0]
