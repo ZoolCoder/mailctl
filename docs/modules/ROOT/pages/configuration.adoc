@@ -1,0 +1,178 @@
+= Configuration
+
+One YAML file describes every domain. Unknown keys are rejected with the field name
+and its line number rather than ignored, so a typo is a loud error instead of a
+setting that silently does nothing.
+
+== Top level
+
+[source,yaml]
+----
+version: 1                          # required, must be 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+  baseUrl: https://api.cloudflare.com/client/v4   # optional
+  ttl: 1                            # 1 means automatic
+
+purelymail:
+  baseUrl: https://purelymail.com   # optional
+
+domains: [...]
+----
+
+Any string value may reference an environment variable with `+${NAME}+`. An unset
+variable is an error.
+
+== A domain
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    zoneName: example.com     # defaults to name; set when the Cloudflare zone differs
+    mail: {...}
+    mailboxes: [...]
+    aliases: [...]
+    catchAll: {...}
+    deliverability: {...}
+----
+
+== mail
+
+[source,yaml]
+----
+mail:
+  provider: purelymail        # a name, or a list of names
+  settings: {...}             # purelymail only
+  ms365: {...}                # ms365 only
+----
+
+`provider` accepts a single name or a list. Providers fall into two groups:
+
+Inbound:: `purelymail`, `cfrouting`, `ms365`. Each publishes MX records and owns
+inbound mail. **A domain may name at most one**, because two providers competing
+for the same MX record cannot both win.
+
+Outbound only:: `cfsending`. Pairs with any inbound provider.
+
+A provider that routes mail but does not host it — `cfrouting`, `cfsending` — cannot
+have a `mailboxes` block. Declaring one is an error.
+
+=== mail.settings (purelymail)
+
+[source,yaml]
+----
+mail:
+  provider: purelymail
+  settings:
+    allowAccountReset: true
+    symbolicSubaddressing: false
+----
+
+`symbolicSubaddressing` is worth understanding before you choose addresses.
+While it is enabled, Purelymail rejects *any* symbol in a username, because
+`first.last` would be interpreted as user `first` with tag `last`. So
+`first.last@example.com` is only possible with this set to `false` — at the cost of
+losing `+tag` addressing across the whole domain.
+
+=== mail.ms365
+
+See xref:providers/ms365.adoc[Microsoft 365].
+
+== mailboxes
+
+[source,yaml]
+----
+mailboxes:
+  - address: contact@example.com
+    passwordEnv: CONTACT_PASSWORD       # omit to generate one
+    displayName: Contact                # ms365 only
+    license: BUSINESS_STANDARD          # ms365 only, overrides the domain default
+    enablePasswordReset: true           # purelymail only
+    enableSearchIndexing: true          # purelymail only
+    requireTwoFactorAuthentication: false   # purelymail only
+    sendWelcomeEmail: false             # purelymail only
+    recovery:                           # purelymail only
+      - type: email
+        target: recovery@example.net
+        description: personal
+        allowMfaReset: false
+----
+
+Provider-specific keys are rejected on the wrong provider rather than ignored. An
+ignored `requireTwoFactorAuthentication` would read as enforced two-factor
+authentication that does not exist.
+
+== aliases
+
+[source,yaml]
+----
+aliases:
+  - match: info                     # exact match on the local part
+    to: [contact@example.com]
+  - match: sales*                   # trailing * matches any local part starting with sales
+    to: [contact@example.com]
+----
+
+Not available on every provider. `ms365` rejects the block, because Microsoft Graph
+exposes the underlying field as read-only.
+
+== catchAll
+
+[source,yaml]
+----
+catchAll:
+  to: [contact@example.com]
+----
+
+Omitting `catchAll` entirely means **leave whatever exists untouched**, not "delete
+it". The two readings are indistinguishable in YAML, and one of them silently loses
+mail, so mailctl takes the safe one. To remove a catch-all, do it at the provider.
+
+== deliverability
+
+[source,yaml]
+----
+deliverability:
+  spfIncludes:
+    - include:servers.mailgun.org
+
+  dmarc:
+    policy: quarantine        # none | quarantine | reject
+    subdomainPolicy: reject
+    pct: 100                  # omit to default to 100
+    rua: mailto:dmarc@example.com
+
+  tlsRpt: mailto:tls-reports@example.com
+
+  bimi:
+    logo: https://example.com/logo.svg
+
+  mtaSts:
+    mode: testing             # none | testing | enforce
+    maxAge: 604800            # optional
+    deploy: true              # upload and bind the policy-serving Worker
+----
+
+See xref:deliverability.adoc[Deliverability] for what each record does and the
+order to enable them in.
+
+`spfIncludes` entries are single mechanisms. No whitespace, no `all` qualifier and
+no `redirect=` modifier: mailctl derives the strictest qualifier itself and rejects
+anything that could override the record it builds.
+
+== Validation
+
+Validation reports every problem at once rather than stopping at the first, so a
+config with three mistakes takes one run to fix rather than three. Errors name the
+domain, the field and what to do about it.
+
+Checks that catch the most common mistakes:
+
+* exactly one inbound provider per domain
+* no `mailboxes` on a provider that cannot host them
+* no provider-specific key on the wrong provider
+* an `+${ENV}+` reference that is not set
+* a `spfIncludes` entry that would override the record's qualifier
+* an unknown key anywhere, reported with its line number

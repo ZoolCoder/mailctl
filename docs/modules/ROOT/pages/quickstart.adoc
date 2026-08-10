@@ -1,0 +1,119 @@
+= Quickstart
+
+This takes one domain from nothing to working mail. It assumes the domain's DNS is
+already served by Cloudflare and that you have an account with a mail provider.
+
+== 1. Provide the tokens
+
+mailctl reads every credential from the environment, never from the config file.
+Keep them in a file outside version control — and add the ignore rule *before*
+you create the file, not after:
+
+[source,console]
+----
+$ printf '*.secrets\n' >> .gitignore
+----
+
+Then create `mailctl.secrets` in your editor with the variables below, set its
+mode to `0600`, and source it:
+
+[source,properties]
+----
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ACCOUNT_ID=...
+PURELYMAIL_API_TOKEN=...
+----
+
+[source,console]
+----
+$ chmod 600 mailctl.secrets
+$ set -a; . ./mailctl.secrets; set +a
+----
+
+See xref:environment.adoc[Credentials and environment] for which variables each
+provider needs.
+
+== 2. Describe the domain
+
+[source,yaml]
+----
+version: 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+  ttl: 1            # 1 means automatic
+
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+    mailboxes:
+      - address: contact@example.com
+----
+
+Omitting `passwordEnv` on a mailbox tells mailctl to generate the credential
+itself. It is reported exactly once, when the mailbox is actually created.
+
+== 3. Plan
+
+[source,console]
+----
+$ mailctl plan
+----
+
+Read the output. Every line is an action mailctl would take, in the order it would
+take it. Nothing has changed yet.
+
+== 4. Apply
+
+[source,console]
+----
+$ mailctl apply -secrets-out first-run.secrets
+----
+
+`-secrets-out` writes any generated credential to a file with mode `0600`. The
+file is refused if it already exists, so a rerun cannot silently overwrite
+credentials you have not yet stored.
+
+[NOTE]
+====
+The first apply may stop partway with a message such as
+`DNS ownership checks did not pass`. That is expected rather than a failure: the
+provider cannot see the records you have just published until they propagate. The
+error says how many actions succeeded. Wait a minute and run `apply` again — every
+action is idempotent, so completed work is skipped.
+====
+
+== 5. Confirm convergence
+
+[source,console]
+----
+$ mailctl plan
+No changes. The live configuration already matches the config file.
+
+$ mailctl audit
+audit example.com
+  ok    MX example.com
+  ok    TXT example.com
+  ok    CNAME purelymail1._domainkey.example.com
+  ...
+----
+
+`plan` reporting no changes and `audit` passing every check means the domain is
+converged. `audit` resolves records through a real resolver rather than trusting
+the provider's own answer, so it catches a record the provider believes it
+published but which never reached DNS.
+
+== 6. Hand over the credential
+
+Retrieve the generated password, put it in a password manager, then delete the
+file:
+
+[source,console]
+----
+$ cat first-run.secrets
+$ rm first-run.secrets
+----
+
+Two rules worth keeping: do not send an address and its password through the same
+channel, and never mail a credential to the mailbox it unlocks.

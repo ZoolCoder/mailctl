@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: gofmt
+        # gofmt exits 0 even when it has complaints, so the output is the signal.
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: build
+        run: go build ./...
+
+      # -count=1 defeats the test cache, so a green run means the tests actually
+      # executed rather than being replayed from a previous one.
+      - name: test
+        run: go test -count=1 ./...
+
+      - name: test with the race detector
+        run: go test -count=1 -race ./...
+
+      - name: verify the dependency set has not grown
+        # The project deliberately has exactly one non-stdlib dependency. A new
+        # one is a design decision, not something that should arrive unnoticed in
+        # a pull request.
+        run: |
+          count=$(go list -deps ./... | grep -c '^gopkg.in/\|^github.com/\|^golang.org/x/' || true)
+          echo "non-stdlib packages in the dependency graph: $count"
+          go list -m all | tail -n +2 | sed 's/^/  /'
+          direct=$(go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | tail -n +2 | grep -v '^$' | wc -l | tr -d ' ')
+          if [ "$direct" -ne 1 ]; then
+            echo "::error::expected exactly 1 direct dependency, found $direct"
+            go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | tail -n +2
+            exit 1
+          fi
+
+      - name: verify go.mod is tidy
+        run: |
+          cp go.mod go.mod.bak
+          cp go.sum go.sum.bak
+          go mod tidy
+          diff -u go.mod.bak go.mod || { echo "::error::go.mod is not tidy"; exit 1; }
+          diff -u go.sum.bak go.sum || { echo "::error::go.sum is not tidy"; exit 1; }

@@ -1,0 +1,123 @@
+= Deliverability
+
+Five record types decide whether your mail is accepted and whether anyone can
+forge it. mailctl publishes all of them from one block, and enforces the rules that
+are easy to get wrong by hand.
+
+== SPF: exactly one record
+
+RFC 7208 permits exactly one SPF TXT record per name. Two is not "more coverage" —
+it is a permanent error that some receivers treat as a hard fail.
+
+That is why no provider publishes its own SPF record directly. Each contributes its
+requirement, and mailctl merges them:
+
+[source,yaml]
+----
+deliverability:
+  spfIncludes:
+    - include:servers.mailgun.org
+----
+
+With Purelymail inbound and that extra include, the published record is one TXT:
+
+----
+v=spf1 include:_spf.purelymail.com include:servers.mailgun.org ~all
+----
+
+Two rules the merge enforces:
+
+* **The strictest qualifier wins.** If any input asks for `-all`, the result is
+`-all`. Loosening a policy silently is the worse mistake.
+* **Entries are single mechanisms.** No whitespace, no `all` qualifier, no
+`redirect=`. A `spfIncludes` entry that could override the record's qualifier is
+rejected, because the whole point of merging is that mailctl controls the outcome.
+
+mailctl also rejects a malformed mechanism outright — a bare `include:` with no
+value, or `include` with no colon. Both produce a record that looks configured and
+fails only at other people's receiving servers, which is the worst kind of broken.
+
+== DMARC
+
+[source,yaml]
+----
+deliverability:
+  dmarc:
+    policy: quarantine        # none | quarantine | reject
+    subdomainPolicy: reject
+    pct: 100
+    rua: mailto:dmarc@example.com
+----
+
+Start at `none` with a `rua` address, read the reports for a week or two, and only
+then move to `quarantine` and `reject`. Going straight to `reject` on a domain whose
+senders you have not yet enumerated silently discards legitimate mail.
+
+Setting `dmarc` makes mailctl the owner of the `_dmarc` name. Providers that would
+otherwise publish their own `_dmarc` CNAME step aside, so the two never compete.
+
+== MTA-STS
+
+MTA-STS tells sending servers to require TLS for your domain. It needs a TXT record
+*and* a policy file served over HTTPS at a well-known URL.
+
+[source,yaml]
+----
+deliverability:
+  mtaSts:
+    mode: testing             # none | testing | enforce
+    maxAge: 604800
+    deploy: true
+----
+
+`deploy: true` has mailctl generate and upload a Cloudflare Worker that serves the
+policy, and bind it to `mta-sts.<domain>`. No Node toolchain or Wrangler install is
+involved — the Worker is generated and uploaded directly.
+
+[WARNING]
+====
+Go to `testing` first and watch your TLS-RPT reports for a week. In `enforce` mode a
+misconfigured MX becomes *undeliverable mail with no warning* — senders will refuse
+to deliver rather than fall back.
+====
+
+The policy id is derived from the policy's content, so an unchanged policy keeps its
+id and an edited one gets a new one automatically. `mode: none` withdraws the policy
+rather than being a no-op.
+
+== TLS-RPT
+
+[source,yaml]
+----
+deliverability:
+  tlsRpt: mailto:tls-reports@example.com
+----
+
+Asks receivers to report TLS delivery failures. Worth enabling *before* MTA-STS, so
+you have reporting in place while the policy is in `testing`. Each comma-separated
+address must begin with `mailto:` or `https:`.
+
+== BIMI
+
+[source,yaml]
+----
+deliverability:
+  bimi:
+    logo: https://example.com/logo.svg
+----
+
+Publishes the BIMI record pointing at your logo. Note that most receivers also
+require a Verified Mark Certificate and a DMARC policy of `quarantine` or `reject`
+before they will display it, so BIMI on its own is unlikely to show anything.
+
+== A sensible order
+
+. Get mail working: MX, SPF, DKIM. Confirm with `mailctl audit`.
+. Add DMARC at `policy: none` with a `rua` address.
+. Add `tlsRpt`.
+. Read the reports. Fix whatever they surface.
+. Move DMARC to `quarantine`, then `reject`.
+. Add MTA-STS at `mode: testing`.
+. After a quiet week, move MTA-STS to `enforce`.
+
+Each step is reversible until the last two, which is exactly why they come last.

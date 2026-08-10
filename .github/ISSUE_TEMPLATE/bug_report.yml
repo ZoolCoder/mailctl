@@ -1,0 +1,45 @@
+name: Bug report
+description: Something behaves differently from what the documentation says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste tokens, mailbox passwords or a real `mailctl.yaml`.**
+        Replace domains and addresses with `example.com` equivalents. If a
+        credential of yours has been exposed, rotate it first — see
+        [SECURITY.md](../blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: mailctl version
+      description: Output of `mailctl version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options: [purelymail, ms365, cfrouting, cfsending, several, not provider specific]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the `plan` or `apply` output, with domains redacted.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and where the docs say so
+      description: A link to the documentation or a quote from it helps a great deal.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Minimal config that reproduces it
+      description: Redacted. The smallest file that still shows the problem.
+      render: yaml

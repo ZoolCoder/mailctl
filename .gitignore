@@ -1,0 +1,14 @@
+secrets.out
+/mailctl
+mailctl.yaml
+*.secrets
+.env
+
+# docs toolchain
+node_modules/
+build/
+.cache/
+
+# working notes: ledgers, briefs and review packages. These reference real
+# domains and infrastructure and must never be committed.
+.superpowers/

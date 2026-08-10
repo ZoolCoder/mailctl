@@ -1,0 +1,582 @@
+/*
+ * ZoolCoder brand layer for the Antora default UI.
+ *
+ * Tokens are taken from zoolcoder.com's own stylesheet so the docs and the
+ * studio site stay in step: the near-black canvas, the teal/cyan accent pair,
+ * Space Grotesk for display and Inter for UI text.
+ *
+ * The stable Antora UI does not expose CSS custom properties, so this file
+ * targets its selectors directly. It is linked *after* site.css, which means
+ * equal-specificity rules win without needing !important.
+ */
+
+:root {
+  /* Canvas and surfaces — dark is the brand's primary mode. */
+  --zc-bg: #07080b;
+  --zc-surface: #0d1015;
+  --zc-surface-2: #12161d;
+  --zc-border: rgba(255, 255, 255, 0.08);
+  --zc-hairline: linear-gradient(90deg, transparent, var(--zc-border), transparent);
+
+  /* Text. */
+  --zc-text: #f8fafc;
+  --zc-text-muted: #94a3b8;
+
+  /* Accents. Teal leads, cyan supports, indigo and amber are incidental. */
+  --zc-accent: #5eead4;
+  --zc-accent-strong: #2dd4bf;
+  --zc-accent-contrast: #07080b;
+  --zc-accent-glow: rgba(45, 212, 191, 0.3);
+  --zc-cyan: #22d3ee;
+  --zc-indigo: #6366f1;
+  --zc-amber: #fbbf24;
+
+  --zc-ambient-1: rgba(45, 212, 191, 0.16);
+  --zc-ambient-2: rgba(34, 211, 238, 0.1);
+
+  /* Shape and motion. */
+  --zc-radius: 18px;
+  --zc-radius-sm: 12px;
+  --zc-shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.6);
+  --zc-shadow-sm: 0 2px 12px -6px rgba(0, 0, 0, 0.7);
+  --zc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --zc-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --zc-font-display: "Space Grotesk", var(--zc-font-ui);
+  --zc-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Syntax tokens. The bundle ships a GitHub *light* highlight.js theme whose
+     colours are near-black, so they must all be restated for a dark canvas. */
+  --zc-syn-comment: #94a3b8;
+  --zc-syn-keyword: #22d3ee;
+  --zc-syn-string: #5eead4;
+  --zc-syn-number: #fbbf24;
+  --zc-syn-name: #f8fafc;
+  --zc-syn-title: #a5b4fc;
+  --zc-syn-meta: #64748b;
+
+  color-scheme: dark;
+}
+
+/* The brand ships a light token set too, so readers who ask for light get a
+   first-class version rather than an inverted approximation. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --zc-bg: #f8fafc;
+    --zc-surface: #ffffff;
+    --zc-surface-2: #f1f5f9;
+    --zc-border: #e2e8f0;
+    --zc-text: #0f172a;
+    --zc-text-muted: #566273;
+    --zc-accent: #0f766e;
+    --zc-accent-strong: #0f766e;
+    --zc-accent-contrast: #ffffff;
+    --zc-accent-glow: rgba(45, 212, 191, 0.28);
+    --zc-ambient-1: rgba(45, 212, 191, 0.12);
+    --zc-ambient-2: rgba(34, 211, 238, 0.08);
+    --zc-shadow: 0 16px 40px -20px rgba(15, 23, 42, 0.18);
+    --zc-shadow-sm: 0 2px 10px -6px rgba(15, 23, 42, 0.12);
+
+    /* Light-mode tokens are darkened rather than reused: cyan and teal at their
+       dark-mode luminance fail contrast on a white surface. */
+    --zc-syn-comment: #6b7280;
+    --zc-syn-keyword: #0e7490;
+    --zc-syn-string: #0f766e;
+    --zc-syn-number: #b45309;
+    --zc-syn-name: #0f172a;
+    --zc-syn-title: #4338ca;
+    --zc-syn-meta: #64748b;
+
+    color-scheme: light;
+  }
+}
+
+/* ---------------------------------------------------------------- canvas */
+
+html {
+  background: var(--zc-bg);
+}
+
+body {
+  font-family: var(--zc-font-ui);
+  background: var(--zc-bg);
+  color: var(--zc-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Two faint ambient washes, echoing the studio site's hero. Fixed so they do
+   not scroll, and behind everything so text contrast is unaffected. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 30rem at 12% -10%, var(--zc-ambient-1), transparent 70%),
+    radial-gradient(50rem 26rem at 92% 4%, var(--zc-ambient-2), transparent 72%);
+}
+
+.body {
+  background: transparent;
+}
+
+a {
+  color: var(--zc-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--zc-accent-strong);
+}
+
+/* ---------------------------------------------------------------- navbar */
+
+.navbar {
+  /* Opaque first as a fallback: a browser without color-mix support drops the
+     translucent declaration and would otherwise fall back to upstream's white. */
+  background: var(--zc-surface);
+  background: color-mix(in srgb, var(--zc-surface) 82%, transparent);
+  backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1px solid var(--zc-border);
+  box-shadow: none;
+}
+
+.navbar-brand .navbar-item,
+.navbar-item,
+.navbar-link {
+  color: var(--zc-text);
+  font-family: var(--zc-font-ui);
+}
+
+.navbar-item:hover,
+.navbar-link:hover {
+  background: transparent;
+  color: var(--zc-accent);
+}
+
+/* The wordmark: monospaced-feeling display type with the accent on the mark. */
+.zc-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--zc-font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.zc-wordmark .zc-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 8px;
+  background: linear-gradient(140deg, var(--zc-accent-strong), var(--zc-cyan));
+  color: var(--zc-accent-contrast);
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--zc-border), 0 6px 18px -8px var(--zc-accent-glow);
+}
+
+.zc-wordmark .zc-product {
+  font-family: var(--zc-font-mono);
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--zc-text-muted);
+}
+
+.navbar-menu,
+.navbar-dropdown {
+  background: var(--zc-surface);
+  border: 1px solid var(--zc-border);
+  box-shadow: var(--zc-shadow);
+}
+
+/* -------------------------------------------------------------- sidebar */
+
+.nav-container,
+.nav {
+  background: transparent;
+  border-right: 1px solid var(--zc-border);
+}
+
+.nav-menu {
+  font-family: var(--zc-font-ui);
+  color: var(--zc-text-muted);
+}
+
+.nav-menu h3.title {
+  font-family: var(--zc-font-display);
+  color: var(--zc-text);
+  letter-spacing: -0.01em;
+}
+
+.nav-list .nav-item .nav-link,
+.nav-list .nav-item .nav-text {
+  color: var(--zc-text-muted);
+  transition: color 0.2s var(--zc-ease);
+}
+
+.nav-list .nav-item .nav-link:hover {
+  color: var(--zc-accent);
+}
+
+/* The current page gets the accent plus a rail, so position is obvious at a
+   glance rather than only on close reading. */
+.nav-menu .is-current-page > .nav-link,
+.nav-menu .is-current-page > .nav-text {
+  color: var(--zc-accent);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--zc-accent-strong);
+  padding-left: 0.6rem;
+}
+
+.nav-panel-explore .context {
+  background: var(--zc-surface-2);
+  border-top: 1px solid var(--zc-border);
+  color: var(--zc-text-muted);
+}
+
+/* -------------------------------------------------------------- toolbar */
+
+.toolbar {
+  background: transparent;
+  border-bottom: 1px solid var(--zc-border);
+  color: var(--zc-text-muted);
+  box-shadow: none;
+}
+
+.toolbar a {
+  color: var(--zc-text-muted);
+}
+
+.toolbar a:hover {
+  color: var(--zc-accent);
+}
+
+.breadcrumbs li::after {
+  color: var(--zc-border);
+}
+
+/* --------------------------------------------------------------- article */
+
+.doc {
+  color: var(--zc-text);
+  max-width: 52rem;
+}
+
+.doc h1,
+.doc h2,
+.doc h3,
+.doc h4,
+.doc h5,
+.doc h6 {
+  font-family: var(--zc-font-display);
+  color: var(--zc-text);
+  letter-spacing: -0.02em;
+}
+
+.doc h1.page {
+  font-size: clamp(1.9rem, 1.4rem + 1.8vw, 2.6rem);
+  line-height: 1.15;
+  margin-bottom: 1.25rem;
+}
+
+/* Section headings get the studio's hairline motif: a teal lead-in that fades
+   into a faint rule. The upstream UI draws a hard grey border here and pulls it
+   1rem wider than the text with negative margins; both are replaced, or the two
+   rules stack into a visible double line. The :not(.discrete) selector is
+   required to match upstream's specificity. */
+.doc h2:not(.discrete) {
+  border-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0 0 0.5rem;
+  position: relative;
+}
+
+.doc h2:not(.discrete)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--zc-accent-strong) 0,
+    var(--zc-accent-strong) 2.5rem,
+    var(--zc-border) 2.5rem,
+    transparent 100%
+  );
+}
+
+.doc p,
+.doc li,
+.doc dd {
+  color: var(--zc-text);
+}
+
+.doc .paragraph p {
+  line-height: 1.65;
+}
+
+/* ------------------------------------------------------------------ code */
+
+.doc code,
+.doc pre {
+  font-family: var(--zc-font-mono);
+}
+
+.doc p code,
+.doc li code,
+.doc td code,
+.doc th code {
+  background: var(--zc-surface-2);
+  border: 1px solid var(--zc-border);
+  border-radius: 6px;
+  color: var(--zc-accent);
+  padding: 0.1em 0.36em;
+  font-size: 0.88em;
+}
+
+.doc pre {
+  background: transparent;
+  border: 0;
+  border-radius: var(--zc-radius-sm);
+}
+
+.doc .listingblock > .content,
+.doc .literalblock > .content {
+  background: transparent;
+}
+
+/* Upstream paints the code surface with `.doc pre.highlight>code` and friends at
+   a specificity `.doc pre code` cannot reach, so the same grouped selector is
+   restated here. Without this the block keeps a #fafafa background and the text
+   sits white-on-white. */
+.doc .listingblock pre:not(.highlight),
+.doc .literalblock pre,
+.doc pre.highlight > code {
+  background: var(--zc-surface);
+  color: var(--zc-text);
+  border-radius: var(--zc-radius-sm);
+  box-shadow: inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm);
+  padding: 0.9em 1em;
+}
+
+/* ------------------------------------------------------- syntax highlighting */
+
+.doc .hljs-comment,
+.doc .hljs-quote {
+  color: var(--zc-syn-comment);
+  font-style: italic;
+}
+
+.doc .hljs-keyword,
+.doc .hljs-selector-tag,
+.doc .hljs-subst,
+.doc .hljs-built_in,
+.doc .hljs-builtin-name {
+  color: var(--zc-syn-keyword);
+  font-weight: 600;
+}
+
+.doc .hljs-string,
+.doc .hljs-doctag,
+.doc .hljs-link,
+.doc .hljs-regexp {
+  color: var(--zc-syn-string);
+}
+
+.doc .hljs-literal,
+.doc .hljs-number,
+.doc .hljs-tag .hljs-attr,
+.doc .hljs-template-variable,
+.doc .hljs-variable,
+.doc .hljs-bullet,
+.doc .hljs-symbol {
+  color: var(--zc-syn-number);
+}
+
+/* YAML keys land on .hljs-attr and .hljs-name. They are the most-read tokens in
+   this documentation, so they get full-strength text rather than an accent. */
+.doc .hljs-attribute,
+.doc .hljs-attr,
+.doc .hljs-name,
+.doc .hljs-tag {
+  color: var(--zc-syn-name);
+  font-weight: 500;
+}
+
+.doc .hljs-section,
+.doc .hljs-selector-id,
+.doc .hljs-title,
+.doc .hljs-type,
+.doc .hljs-class .hljs-title {
+  color: var(--zc-syn-title);
+  font-weight: 600;
+}
+
+/* The console prompt. Dimmed and unselectable so copying a command does not
+   pick up the `$`. */
+.doc .hljs-meta {
+  color: var(--zc-syn-meta);
+  font-weight: 400;
+}
+
+.doc .hljs-deletion { background: rgba(185, 28, 28, 0.22); }
+.doc .hljs-addition { background: rgba(45, 212, 191, 0.16); }
+
+.doc .title {
+  color: var(--zc-text-muted);
+  font-family: var(--zc-font-ui);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- tables */
+
+.doc table.tableblock {
+  border-color: var(--zc-border);
+  font-size: 0.94rem;
+}
+
+.doc table.tableblock thead th {
+  background: var(--zc-surface-2);
+  color: var(--zc-text);
+  font-family: var(--zc-font-display);
+  font-weight: 600;
+  border-color: var(--zc-border);
+}
+
+.doc table.tableblock td,
+.doc table.tableblock th {
+  border-color: var(--zc-border);
+}
+
+.doc table.tableblock tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--zc-surface) 55%, transparent);
+}
+
+/* ------------------------------------------------------------ admonitions */
+
+/* Upstream makes `td.content` the visible box (it carries background:#fafafa at
+   a specificity of 0,3,2) and positions the label chip *outside* that box with
+   absolute positioning plus a translate. So the content cell is styled as the
+   card here, and the wrapper stays transparent with no overflow clipping —
+   `overflow: hidden` on the wrapper cuts the chip in half. */
+.doc .admonitionblock {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  margin: 1.75rem 0 0;
+}
+
+.doc .admonitionblock > table {
+  background: transparent;
+}
+
+.doc .admonitionblock td.content {
+  background: var(--zc-surface);
+  color: var(--zc-text);
+  border: 0;
+  border-radius: var(--zc-radius-sm);
+  box-shadow: inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm);
+}
+
+.doc .admonitionblock td.icon {
+  border: 0;
+}
+
+/* Colour carries the severity: cyan informs, teal advises, indigo insists,
+   amber cautions. The chip text is the near-black brand contrast colour, since
+   every chip background is a bright accent. */
+.doc .admonitionblock td.icon i {
+  font-family: var(--zc-font-display);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--zc-accent-contrast);
+  box-shadow: var(--zc-shadow-sm);
+}
+
+.doc .admonitionblock td.icon i.icon-note { background-color: var(--zc-cyan); }
+.doc .admonitionblock td.icon i.icon-tip { background-color: var(--zc-accent-strong); }
+.doc .admonitionblock td.icon i.icon-important { background-color: var(--zc-indigo); color: #fff; }
+.doc .admonitionblock td.icon i.icon-warning,
+.doc .admonitionblock td.icon i.icon-caution { background-color: var(--zc-amber); }
+
+/* A matching rail down the left edge of the card, so severity is legible even
+   when the chip has scrolled out of view on a long note. */
+.doc .admonitionblock.note td.content { box-shadow: inset 3px 0 0 var(--zc-cyan), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
+.doc .admonitionblock.tip td.content { box-shadow: inset 3px 0 0 var(--zc-accent-strong), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
+.doc .admonitionblock.important td.content { box-shadow: inset 3px 0 0 var(--zc-indigo), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
+.doc .admonitionblock.warning td.content,
+.doc .admonitionblock.caution td.content { box-shadow: inset 3px 0 0 var(--zc-amber), inset 0 0 0 1px var(--zc-border), var(--zc-shadow-sm); }
+
+/* Nested code inside a note sits on the surface-2 tone so it stays distinct
+   from the card it is inside. */
+.doc .admonitionblock td.content .listingblock pre:not(.highlight),
+.doc .admonitionblock td.content pre.highlight > code {
+  background: var(--zc-surface-2);
+}
+
+/* --------------------------------------------------------- toc and footer */
+
+.toc .toc-menu h3 {
+  font-family: var(--zc-font-display);
+  color: var(--zc-text-muted);
+}
+
+.toc .toc-menu a {
+  color: var(--zc-text-muted);
+  border-left: 1px solid var(--zc-border);
+}
+
+.toc .toc-menu a:hover,
+.toc .toc-menu a.is-active {
+  color: var(--zc-accent);
+  border-left-color: var(--zc-accent-strong);
+}
+
+.pagination a {
+  color: var(--zc-accent);
+}
+
+.footer {
+  background: transparent;
+  border-top: 1px solid var(--zc-border);
+  color: var(--zc-text-muted);
+}
+
+.zc-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: var(--zc-text-muted);
+}
+
+.zc-footer a {
+  color: var(--zc-text-muted);
+}
+
+.zc-footer a:hover {
+  color: var(--zc-accent);
+}
+
+.zc-footer .zc-tagline {
+  font-family: var(--zc-font-display);
+  color: var(--zc-text);
+}
+
+/* ------------------------------------------------------------------ print */
+
+@media print {
+  body::before { display: none; }
+  body { background: #fff; color: #000; }
+}

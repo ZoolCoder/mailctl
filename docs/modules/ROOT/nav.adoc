@@ -1,0 +1,13 @@
+* xref:index.adoc[Introduction]
+* xref:install.adoc[Install]
+* xref:quickstart.adoc[Quickstart]
+* Reference
+** xref:configuration.adoc[Configuration]
+** xref:commands.adoc[Commands]
+** xref:environment.adoc[Credentials and environment]
+* Providers
+** xref:providers/purelymail.adoc[Purelymail]
+** xref:providers/ms365.adoc[Microsoft 365]
+** xref:providers/cloudflare.adoc[Cloudflare routing and sending]
+* xref:deliverability.adoc[Deliverability]
+* xref:troubleshooting.adoc[Troubleshooting]

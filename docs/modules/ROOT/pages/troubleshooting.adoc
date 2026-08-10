@@ -1,0 +1,73 @@
+= Troubleshooting
+
+== "DNS ownership checks did not pass"
+
+Expected on a first apply, not a failure. The provider cannot see the records
+mailctl has just published until they propagate. The error says how many actions
+succeeded.
+
+Wait a minute and run `apply` again. Every action is idempotent, so completed work
+is skipped.
+
+== plan keeps proposing the same action
+
+The desired record and the live record differ in a way you cannot see — a trailing
+dot, a case difference, a TTL, or a quoted string. Run `mailctl audit` to see what
+is actually resolving.
+
+If `audit` says the record is correct but `plan` still wants to create it, that is a
+comparison bug worth reporting rather than working around.
+
+== Purelymail rejects an address with `invalidUserName`
+
+The domain has symbolic subaddressing enabled, which forbids any symbol in a
+username. `first.last@` and `first-last@` are both refused; `firstlast@` works.
+
+Set `symbolicSubaddressing: false` in `mail.settings` to allow dots, accepting that
+`+tag` addressing stops working for the whole domain. See
+xref:providers/purelymail.adoc[Purelymail].
+
+== A Microsoft 365 mailbox exists but receives nothing
+
+The user was created but the licence was not assigned, so there is no mailbox behind
+the account. Run `mailctl plan` — it reports the mailbox as present-but-unlicensed
+and proposes assigning only the licence. Apply that.
+
+If the plan reports no changes, check the licence in the admin centre: the account
+may hold a different SKU from the one your config names.
+
+== "creating mailboxes needs N seats but only M are free"
+
+Microsoft 365 mailboxes are licensed users and the seats are exhausted. Buy seats or
+free some, then rerun. mailctl checks this at plan time on purpose — discovering it
+mid-apply would leave some mailboxes created and others not.
+
+== A flag seems to be ignored
+
+It probably was rejected. Flags scoped to one command are refused on the others, so
+`-prune` on `mailbox add` is an error rather than a silent no-op. Check the exit
+status and stderr.
+
+`-prune-mailboxes` without `-prune` is likewise rejected: alone it would do nothing,
+and a flag that appears accepted while doing nothing is worse than an error.
+
+== Mail stops being delivered after enabling MTA-STS
+
+Almost certainly `mode: enforce` with an MX record the policy does not cover.
+Senders honouring the policy will refuse to deliver rather than fall back.
+
+Set `mode: testing`, apply, and check your TLS-RPT reports before enforcing again.
+
+== A credential was lost
+
+Generated credentials are reported exactly once, when the mailbox is created, and
+providers store only a hash. There is no way to read one back.
+
+Reset it: `mailctl mailbox passwd <address>`. Omit `-password-env` to have a new one
+generated, and pass `-secrets-out` to capture it.
+
+== Getting more detail
+
+`mailctl plan` output includes provider notes — DNS check results, licence seat
+counts, unmanaged objects, verification status. Those notes are usually where the
+answer is, and they appear whether or not anything needs changing.
