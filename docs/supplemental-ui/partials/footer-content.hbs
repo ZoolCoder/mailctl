@@ -1,9 +1,55 @@
 <footer class="footer">
   <div class="zc-footer">
-    <span class="zc-tagline">Many systems. One intelligent core.</span>
-    <span>
-      <a href="https://zoolcoder.com/">ZoolCoder</a> — AI, automation and software studio.
-      Documentation built with <a href="https://antora.org">Antora</a>.
-    </span>
+    <div class="zc-footer-top">
+      <div class="zc-footer-brand">
+        <a class="zc-footer-logo" href="https://zoolcoder.com/" aria-label="ZoolCoder home">
+          <picture class="zc-logo">
+            <source srcset="{{{uiRootPath}}}/img/mark-96.webp" type="image/webp">
+            <img src="{{{uiRootPath}}}/img/mark-128.png" alt="" width="32" height="32" loading="lazy">
+          </picture>
+          <span class="zc-logo-text">ZoolCoder</span>
+        </a>
+        <p class="zc-footer-tagline">Many systems. One intelligent core.</p>
+      </div>
+
+      <nav class="zc-footer-cols" aria-label="Footer navigation">
+        <div class="zc-footer-col">
+          <h2 class="zc-footer-title">Documentation</h2>
+          <ul>
+            <li><a href="{{{siteRootPath}}}/mailctl/index.html">Introduction</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/quickstart.html">Quickstart</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/configuration.html">Configuration</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/commands.html">Commands</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+        <div class="zc-footer-col">
+          <h2 class="zc-footer-title">Providers</h2>
+          <ul>
+            <li><a href="{{{siteRootPath}}}/mailctl/providers/purelymail.html">Purelymail</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/providers/ms365.html">Microsoft 365</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/providers/cloudflare.html">Cloudflare</a></li>
+            <li><a href="{{{siteRootPath}}}/mailctl/deliverability.html">Deliverability</a></li>
+          </ul>
+        </div>
+        <div class="zc-footer-col">
+          <h2 class="zc-footer-title">Project</h2>
+          <ul>
+            <li><a href="https://github.com/zoolcoder/mailctl">Source</a></li>
+            <li><a href="https://github.com/zoolcoder/mailctl/blob/main/ROADMAP.md">Roadmap</a></li>
+            <li><a href="https://github.com/zoolcoder/mailctl/blob/main/CONTRIBUTING.md">Contributing</a></li>
+            <li><a href="https://github.com/zoolcoder/mailctl/blob/main/SECURITY.md">Security</a></li>
+            <li><a href="https://github.com/zoolcoder/mailctl/issues">Issues</a></li>
+          </ul>
+        </div>
+      </nav>
+    </div>
+
+    <hr class="zc-footer-rule">
+
+    <div class="zc-footer-bottom">
+      <p>&copy; 2026 <a href="https://zoolcoder.com/">ZoolCoder</a>. Apache-2.0 licensed.</p>
+      <p class="zc-footer-craft">Built with care at the edge.</p>
+    </div>
   </div>
 </footer>

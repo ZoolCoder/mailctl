@@ -15,88 +15,106 @@
 
 /* ------------------------------------------------------------------ tokens */
 
-:root {
-  --zc-bg: #07080b;
-  --zc-surface: #0d1015;
-  --zc-surface-2: #12161d;
-  --zc-border: rgba(255, 255, 255, 0.08);
+/* Taken from the studio site's own src/styles/global.css, not from its compiled
+   bundle: the bundle also carries an --admin-* set for the dashboard, which is a
+   different palette with different radii and a different body face. The public
+   site is dark-only, so the light values below are derived rather than copied. */
+
+:root,
+:root[data-theme="dark"] {
+  --zc-bg: #07080b;          /* --paper */
+  --zc-surface: #0a0c11;     /* --paper-2 */
+  --zc-surface-2: #0d1016;   /* --ink-2 */
+  --zc-surface-3: #10141c;   /* --ink-3 */
+  --zc-border: rgba(255, 255, 255, 0.08);        /* --paper-line */
   --zc-border-strong: rgba(255, 255, 255, 0.14);
 
-  --zc-text: #e8edf5;
-  --zc-text-strong: #f8fafc;
-  --zc-text-muted: #94a3b8;
-  --zc-text-faint: #64748b;
+  --zc-text: #f4f7fa;        /* --text */
+  --zc-text-strong: #ffffff;
+  --zc-text-muted: #aeb8c6;  /* --text-soft */
+  --zc-text-faint: #8a94a6;  /* --text-faint */
 
-  --zc-accent: #5eead4;
+  --zc-accent: #2dd4bf;      /* --teal */
   --zc-accent-strong: #2dd4bf;
   --zc-accent-contrast: #07080b;
-  --zc-accent-glow: rgba(45, 212, 191, 0.3);
+  --zc-accent-glow: rgba(45, 212, 191, 0.5);     /* --glow-teal-lg */
   --zc-cyan: #22d3ee;
-  --zc-indigo: #818cf8;
+  --zc-violet: #6366f1;
+  --zc-violet-soft: #a5b4fc;
   --zc-amber: #fbbf24;
 
-  --zc-ambient-1: rgba(45, 212, 191, 0.14);
-  --zc-ambient-2: rgba(34, 211, 238, 0.09);
+  --zc-ambient-1: rgba(45, 212, 191, 0.13);
+  --zc-ambient-2: rgba(34, 211, 238, 0.08);
 
-  --zc-radius-sm: 10px;
   --zc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --zc-shadow: 0 18px 44px -22px rgba(0, 0, 0, 0.7);
-  --zc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --zc-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 28px 64px rgba(0, 0, 0, 0.6);
 
-  --zc-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --zc-font-display: "Space Grotesk", var(--zc-font-ui);
-  --zc-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-
-  /* Syntax tokens. The bundle ships a light highlight.js theme whose colours are
-     near-black, so every one must be restated for a dark canvas. */
-  --zc-syn-comment: #7c8798;
+  --zc-syn-comment: #8a94a6;
   --zc-syn-keyword: #22d3ee;
-  --zc-syn-string: #5eead4;
+  --zc-syn-string: #2dd4bf;
   --zc-syn-number: #fbbf24;
-  --zc-syn-name: #e8edf5;
+  --zc-syn-name: #f4f7fa;
   --zc-syn-title: #a5b4fc;
-  --zc-syn-meta: #64748b;
+  --zc-syn-meta: #6b7686;
 
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --zc-bg: #fbfcfe;
-    --zc-surface: #ffffff;
-    --zc-surface-2: #f4f7fa;
-    --zc-border: #e3e9f0;
-    --zc-border-strong: #cfd8e3;
+:root[data-theme="light"] {
+  --zc-bg: #fcfdfe;
+  --zc-surface: #ffffff;
+  --zc-surface-2: #f4f7fa;
+  --zc-surface-3: #eef2f7;
+  --zc-border: #e4eaf1;
+  --zc-border-strong: #ccd6e2;
 
-    --zc-text: #1e293b;
-    --zc-text-strong: #0b1220;
-    --zc-text-muted: #5b6879;
-    --zc-text-faint: #8593a5;
+  --zc-text: #16202f;
+  --zc-text-strong: #070a10;
+  --zc-text-muted: #55637a;
+  --zc-text-faint: #7c8899;
 
-    --zc-accent: #0d7a6f;
-    --zc-accent-strong: #0f766e;
-    --zc-accent-contrast: #ffffff;
-    --zc-accent-glow: rgba(13, 148, 136, 0.22);
-    --zc-cyan: #0e7490;
-    --zc-indigo: #4f46e5;
-    --zc-amber: #b45309;
+  /* The brand teal fails contrast on white, so light mode uses a darkened teal
+     for text and keeps the bright one for fills only. */
+  --zc-accent: #0d7d70;
+  --zc-accent-strong: #0f766e;
+  --zc-accent-contrast: #ffffff;
+  --zc-accent-glow: rgba(13, 148, 136, 0.2);
+  --zc-cyan: #0e7490;
+  --zc-violet: #4f46e5;
+  --zc-violet-soft: #6366f1;
+  --zc-amber: #a2620a;
 
-    --zc-ambient-1: rgba(45, 212, 191, 0.1);
-    --zc-ambient-2: rgba(34, 211, 238, 0.07);
+  --zc-ambient-1: rgba(45, 212, 191, 0.09);
+  --zc-ambient-2: rgba(34, 211, 238, 0.06);
 
-    --zc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-    --zc-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.2);
+  --zc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --zc-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 24px 56px -28px rgba(15, 23, 42, 0.18);
 
-    --zc-syn-comment: #6b7280;
-    --zc-syn-keyword: #0e7490;
-    --zc-syn-string: #0f766e;
-    --zc-syn-number: #b45309;
-    --zc-syn-name: #0b1220;
-    --zc-syn-title: #4338ca;
-    --zc-syn-meta: #64748b;
+  --zc-syn-comment: #6b7687;
+  --zc-syn-keyword: #0e7490;
+  --zc-syn-string: #0f766e;
+  --zc-syn-number: #a2620a;
+  --zc-syn-name: #16202f;
+  --zc-syn-title: #4338ca;
+  --zc-syn-meta: #7c8899;
 
-    color-scheme: light;
-  }
+  color-scheme: light;
+}
+
+:root {
+  /* Shape and motion, matching the studio site: 4px and 10px, not the
+     dashboard's 18px, and the site's own easing and duration. */
+  --zc-radius-sm: 4px;
+  --zc-radius: 10px;
+  --zc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --zc-dur: 240ms;
+
+  --zc-font-ui: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --zc-font-display: "Space Grotesk", var(--zc-font-ui);
+  --zc-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --zc-fs-body: 17px;
+  --zc-fs-label: 12.5px;
 }
 
 /* ------------------------------------------------------------------ canvas */
@@ -107,7 +125,7 @@ body {
   font-family: var(--zc-font-ui);
   background: var(--zc-bg);
   color: var(--zc-text);
-  font-size: 16.5px;
+  font-size: var(--zc-fs-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -177,38 +195,65 @@ a:hover { color: var(--zc-accent-strong); }
 
 .navbar-end .navbar-item:hover::after { left: 0.75rem; right: 0.75rem; }
 
-.zc-wordmark {
+/* The real brand mark, from the studio site's own asset. */
+.zc-brand { display: inline-flex; align-items: center; gap: 0.62rem; }
+
+.zc-logo { display: inline-flex; width: 30px; height: 30px; }
+
+.zc-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform var(--zc-dur) var(--zc-ease);
+}
+
+.zc-brand:hover .zc-logo img,
+.zc-footer-logo:hover .zc-logo img { transform: rotate(-6deg) scale(1.05); }
+
+.zc-logo-text {
+  font-family: var(--zc-font-display);
+  font-weight: 600;
+  font-size: 1.18rem;
+  letter-spacing: -0.03em;
+  color: var(--zc-text);
+}
+
+/* The product name sits beside the brand as a quiet monospace tag. */
+.navbar-brand .zc-product-link {
+  font-family: var(--zc-font-mono);
+  font-size: 0.9rem;
+  color: var(--zc-text-faint);
+  padding-left: 0.3rem;
+}
+
+.navbar-brand .zc-product-link::before { content: "/"; margin-right: 0.45rem; opacity: 0.5; }
+.navbar-brand .zc-product-link:hover { color: var(--zc-accent); background: transparent; }
+
+/* Theme toggle: one button, the irrelevant icon hidden per theme. */
+.zc-theme-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-family: var(--zc-font-display);
-  font-weight: 700;
-  font-size: 1.06rem;
-  letter-spacing: -0.02em;
-  color: var(--zc-text-strong);
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--zc-border);
+  border-radius: var(--zc-radius-sm);
+  color: var(--zc-text-muted);
+  cursor: pointer;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  margin-left: 0.4rem;
+  align-self: center;
+  transition: color var(--zc-dur) var(--zc-ease), border-color var(--zc-dur) var(--zc-ease);
 }
 
-.zc-wordmark .zc-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 9px;
-  background: linear-gradient(140deg, var(--zc-accent-strong), var(--zc-cyan));
-  color: var(--zc-accent-contrast);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  box-shadow: 0 0 0 1px var(--zc-border-strong), 0 8px 20px -10px var(--zc-accent-glow);
-}
+.zc-theme-toggle:hover { color: var(--zc-accent); border-color: var(--zc-accent-strong); }
+.zc-theme-toggle::after { content: none; }
 
-.zc-wordmark .zc-product {
-  font-family: var(--zc-font-mono);
-  font-weight: 500;
-  font-size: 0.92rem;
-  color: var(--zc-text-faint);
-  letter-spacing: 0;
-}
+:root[data-theme="dark"] .zc-icon-sun { display: block; }
+:root[data-theme="dark"] .zc-icon-moon { display: none; }
+:root[data-theme="light"] .zc-icon-sun { display: none; }
+:root[data-theme="light"] .zc-icon-moon { display: block; }
 
 .navbar-menu,
 .navbar-dropdown {
@@ -607,30 +652,110 @@ nav.pagination {
 
 nav.pagination a { color: var(--zc-accent); font-weight: 500; }
 
-.footer {
-  background: transparent;
+/* ------------------------------------------------------------------ footer */
+
+/* Mirrors the studio site's footer: brand and tagline beside link columns, a
+   rule, then a bottom line. The stock single-line footer read as an afterthought. */
+/* Upstream ships two `footer.footer` rules — element plus class, so (0,1,1) —
+   which set a grey background and a cramped padding. A bare `.footer` cannot
+   reach them, hence the element qualifier here. */
+footer.footer {
+  background: var(--zc-surface);
   border-top: 1px solid var(--zc-border);
-  color: var(--zc-text-faint);
-  padding: 1.5rem 2rem;
+  color: var(--zc-text-muted);
+  padding: clamp(2.5rem, 5vw, 4rem) 2rem 2rem;
+  margin-top: 0;
 }
 
-.zc-footer {
+.zc-footer { max-width: 72rem; margin: 0 auto; }
+
+.zc-footer-top {
+  display: grid;
+  grid-template-columns: 1.4fr 2fr;
+  gap: clamp(2rem, 5vw, 5rem);
+}
+
+.zc-footer-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.62rem;
+  text-decoration: none;
+}
+
+.zc-footer-tagline {
+  margin: 1.15rem 0 0;
+  max-width: 34ch;
+  color: var(--zc-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.zc-footer-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+
+.zc-footer-title {
+  font-family: var(--zc-font-display);
+  font-size: var(--zc-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--zc-text-faint);
+  margin: 0 0 0.75rem;
+}
+
+.zc-footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+
+/* An underline that wipes in from the left, as on the studio site. */
+.zc-footer-col a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--zc-text-muted);
+  font-size: 0.93rem;
+  padding: 0.34rem 0;
+  text-decoration: none;
+}
+
+.zc-footer-col a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.28rem;
+  height: 1.5px;
+  background: var(--zc-accent-strong);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--zc-dur) var(--zc-ease);
+}
+
+.zc-footer-col a:hover,
+.zc-footer-col a:focus-visible { color: var(--zc-accent); }
+.zc-footer-col a:hover::after,
+.zc-footer-col a:focus-visible::after { transform: scaleX(1); }
+
+.zc-footer-rule {
+  border: 0;
+  border-top: 1px solid var(--zc-border);
+  margin: clamp(2rem, 4vw, 3rem) 0 1.25rem;
+}
+
+.zc-footer-bottom {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
-  align-items: baseline;
+  gap: 0.35rem 1.5rem;
   justify-content: space-between;
-  font-size: 0.85rem;
-  max-width: 76rem;
-  margin: 0 auto;
+  font-size: 0.87rem;
+  color: var(--zc-text-faint);
 }
 
-.zc-footer a { color: var(--zc-text-muted); }
-.zc-footer a:hover { color: var(--zc-accent); }
-.zc-footer .zc-tagline {
-  font-family: var(--zc-font-display);
-  font-weight: 600;
-  color: var(--zc-text);
+.zc-footer-bottom p { margin: 0; }
+.zc-footer-bottom a { color: var(--zc-text-muted); }
+.zc-footer-bottom a:hover { color: var(--zc-accent); }
+.zc-footer-craft { font-family: var(--zc-font-display); }
+
+@media screen and (max-width: 800px) {
+  .zc-footer-top { grid-template-columns: 1fr; gap: 2.25rem; }
+  .zc-footer-cols { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
 }
 
 /* ------------------------------------------------------ landing page extras */
