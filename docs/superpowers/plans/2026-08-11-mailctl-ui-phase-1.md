@@ -893,6 +893,12 @@ func TestAuthRejectionRevealsNothing(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
+	// Assert the rejection happened before asserting what it did not say. A
+	// body-only check passes vacuously when the guard is absent: a pass-through
+	// returns 200 with an empty body, which contains neither string.
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
 	for _, leak := range []string{"secret", "guess"} {
 		if strings.Contains(rec.Body.String(), leak) {
 			t.Errorf("rejection body contains %q: %s", leak, rec.Body.String())
