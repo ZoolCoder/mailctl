@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -579,6 +580,72 @@ func TestPlanNeverAppliesEvenIfTheGateBreaks(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Run `mailctl apply`") {
 		t.Errorf("plan must render the plan-only message, not apply; stdout:\n%s", stdout.String())
+	}
+}
+
+// TestPlanJSONEmitsOnlyJSON asserts that -json is a rendering concern only: a
+// consumer piping this into jq must get the document and nothing else, not
+// the human summary line or the "Run `mailctl apply`" hint interleaved with
+// it.
+func TestPlanJSONEmitsOnlyJSON(t *testing.T) {
+	server := fakeServer(t)
+	configPath := writeTestConfig(t, server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "cf-tok")
+	t.Setenv("PURELYMAIL_API_TOKEN", "pm-tok")
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"plan", "-json", "-config", configPath}, nil, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, stderr.String())
+	}
+
+	var doc struct {
+		SchemaVersion int `json:"schemaVersion"`
+		Actions       []struct {
+			Op     string `json:"op"`
+			Domain string `json:"domain"`
+		} `json:"actions"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
+		t.Fatalf("stdout is not valid json: %v\ngot: %s", err, stdout.String())
+	}
+	if doc.SchemaVersion != 1 {
+		t.Errorf("schemaVersion = %d, want 1", doc.SchemaVersion)
+	}
+
+	// stdout must be the document and nothing else. Assert the shape directly:
+	// a prose check of the form `contains(prose) && !contains("\"actions\"")`
+	// can never fire, because the document always contains "actions".
+	out := stdout.String()
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
+		t.Errorf("stdout does not begin with a json object: %q", out)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(out), "}") {
+		t.Errorf("stdout does not end with a json object; something was appended: %q", out)
+	}
+	for _, prose := range []string{"Run `mailctl apply`", "No changes.", " actions\n"} {
+		if strings.Contains(out, prose) {
+			t.Errorf("stdout carries the human rendering %q, which breaks a jq consumer", prose)
+		}
+	}
+}
+
+// TestApplyRejectsJSONFlag pins -json's scoping the opposite way from
+// -prune/-yes: it is a plan-only rendering concern, so apply must refuse it
+// rather than silently ignore it.
+func TestApplyRejectsJSONFlag(t *testing.T) {
+	server := fakeServer(t)
+	configPath := writeTestConfig(t, server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "cf-tok")
+	t.Setenv("PURELYMAIL_API_TOKEN", "pm-tok")
+
+	var stdout, stderr strings.Builder
+	err := run([]string{"apply", "-json", "-config", configPath, "-yes"},
+		strings.NewReader(""), &stdout, &stderr)
+
+	wantSubstr := "flag -json is not valid for apply"
+	if err == nil || !strings.Contains(err.Error(), wantSubstr) {
+		t.Fatalf("err = %v, want it to contain %q", err, wantSubstr)
 	}
 }
 

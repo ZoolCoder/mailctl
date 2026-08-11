@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"github.com/zoolcoder/mailctl/internal/mail"
 	"github.com/zoolcoder/mailctl/internal/mail/ms365"
 	"github.com/zoolcoder/mailctl/internal/mail/purelymail"
+	"github.com/zoolcoder/mailctl/internal/planjson"
 	"github.com/zoolcoder/mailctl/internal/secret"
 	"github.com/zoolcoder/mailctl/internal/worker"
 
@@ -115,6 +117,7 @@ Usage:
 Flags:
   -config string        config file (default "mailctl.yaml")
   -domain value         limit to this domain; repeat for several
+  -json                 print the plan as JSON on stdout (plan only)
   -prune                delete provider-side objects absent from the config
   -prune-mailboxes      allow -prune to delete mailboxes; deleting a mailbox destroys its mail
   -replace-dns          replace conflicting MX, SPF, DKIM, DMARC records
@@ -233,6 +236,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	passwordEnv := flags.String("password-env", "", "environment variable holding the credential (mailbox add|passwd)")
 	aliasDomain := flags.String("alias-domain", "", "domain the alias belongs to (alias add|rm)")
 	appPassName := flags.String("name", "", "app credential label (apppass)")
+	planJSON := flags.Bool("json", false,
+		"print the plan as JSON on stdout instead of the human summary")
 	flags.Var(&domains, "domain", "limit to this domain; repeat for several")
 	flags.Var(&aliasTargets, "to", "alias target address; repeat for several")
 
@@ -458,6 +463,14 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return err
 	}
 
+	if command == "plan" && *planJSON {
+		// Encode to stdout only. A human summary interleaved with the document
+		// would break every consumer that pipes this into a parser.
+		encoder := json.NewEncoder(stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(planjson.FromPlan(built))
+	}
+
 	if command == "plan" {
 		built.Render(stdout)
 		if len(built.Executable()) != 0 {
@@ -526,7 +539,7 @@ func requireDomainInScope(editedDomain string, scope domainList) error {
 	return fmt.Errorf("-domain %s does not include %s, the domain being edited", strings.Join(scope, ","), editedDomain)
 }
 
-// scopedFlags are meaningless or dangerous outside plan and apply. mailbox,
+// scopedFlags maps a flag name to the commands it is valid on. mailbox,
 // alias, and apppass each name one target address on the command line, not a
 // domain-wide reconciliation, so -prune (delete everything provider-side
 // absent from the config), -prune-mailboxes (extend that to mailboxes), and
@@ -537,22 +550,32 @@ func requireDomainInScope(editedDomain string, scope domainList) error {
 // built from these same flag values, so rejecting them here also keeps that
 // internal apply from ever running with Prune, PruneMailboxes, or ReplaceDNS
 // set, or its confirmation prompt skipped.
-var scopedFlags = map[string]bool{"prune": true, "prune-mailboxes": true, "replace-dns": true, "yes": true}
+//
+// -json is scoped the other way around: it is a rendering concern for plan
+// alone, so apply must reject it rather than silently ignore it.
+var scopedFlags = map[string]map[string]bool{
+	"prune":           {"plan": true, "apply": true},
+	"prune-mailboxes": {"plan": true, "apply": true},
+	"replace-dns":     {"plan": true, "apply": true},
+	"yes":             {"plan": true, "apply": true},
+	"json":            {"plan": true},
+}
 
 // rejectScopedFlags errors on a flag from scopedFlags the operator actually
 // set (via flags.Visit, not flags.VisitAll, so an unset default never
 // triggers this) for a command it is not valid on.
 func rejectScopedFlags(flags *flag.FlagSet, command, verb string) error {
-	if command == "plan" || command == "apply" {
-		return nil
-	}
 	label := command
 	if verb != "" {
 		label = command + " " + verb
 	}
 	var offense error
 	flags.Visit(func(f *flag.Flag) {
-		if offense == nil && scopedFlags[f.Name] {
+		if offense != nil {
+			return
+		}
+		validOn, scoped := scopedFlags[f.Name]
+		if scoped && !validOn[command] {
 			offense = fmt.Errorf("flag -%s is not valid for %s", f.Name, label)
 		}
 	})
