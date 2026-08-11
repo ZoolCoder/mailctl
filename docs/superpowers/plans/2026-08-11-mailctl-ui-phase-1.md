@@ -598,8 +598,10 @@ export default defineConfig({
     outDir: '../internal/ui/dist',
     emptyOutDir: true,
     // A stable, non-hashed entry name keeps the committed bundle's diff
-    // readable in review; asset hashing still applies to imported chunks.
-    rollupOptions: { output: { entryFileNames: 'app.js', assetFileNames: 'app.[ext]' } },
+    // readable in review. Assets keep [name] rather than a content hash for the
+    // same reason — but they must keep it: a bare `app.[ext]` collides two
+    // same-extension assets onto one filename and silently overwrites one.
+    rollupOptions: { output: { entryFileNames: 'app.js', assetFileNames: 'app-[name].[ext]' } },
   },
 })
 ```

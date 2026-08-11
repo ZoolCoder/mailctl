@@ -14,7 +14,7 @@ export default defineConfig({
         // Stable, non-hashed entry names keep the committed bundle's diff
         // readable in review; asset hashing still applies to imported chunks.
         entryFileNames: 'app.js',
-        assetFileNames: 'app.[ext]',
+        assetFileNames: 'app-[name].[ext]',
       },
     },
   },
