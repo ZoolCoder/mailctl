@@ -17,10 +17,12 @@ function toggle(domain: string) {
   <ul v-else class="domain-list">
     <li v-for="domain in store.domains" :key="domain.name" class="domain-row">
       <button type="button" class="domain-toggle" @click="toggle(domain.name)">
-        <span :class="['status-dot', store.isConverged(domain.name) ? 'converged' : 'pending']" />
+        <span :class="['status-dot', store.isConverged(domain.name) ? 'converged' : 'pending']" aria-hidden="true" />
         <span class="name">{{ domain.name }}</span>
-        <span class="zone">{{ domain.zone }}</span>
-        <span class="providers">{{ domain.providers.join(', ') }}</span>
+        <!-- Zone usually equals the domain name; showing it again unqualified
+             reads as a rendering bug, so only surface it when it differs. -->
+        <span v-if="domain.zone !== domain.name" class="zone">(zone: {{ domain.zone }})</span>
+        <span class="providers">— {{ domain.providers.join(', ') || 'no providers' }}</span>
       </button>
       <ActionList v-if="expanded === domain.name" :domain="domain.name" />
     </li>

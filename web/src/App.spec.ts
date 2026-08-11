@@ -58,4 +58,24 @@ describe('App', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[1][0]).toContain('/api/plan')
   })
+
+  it('triggers an audit call only when the Audit button is clicked', async () => {
+    const fetchMock = stubFetch()
+
+    const wrapper = mount(App, {
+      global: { plugins: [createPinia()] },
+    })
+    await flushPromises()
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ reports: [] }),
+    })
+
+    await wrapper.findAll('button')[1].trigger('click')
+    await flushPromises()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[1][0]).toContain('/api/audit')
+  })
 })

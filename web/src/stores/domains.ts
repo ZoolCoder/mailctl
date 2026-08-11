@@ -9,6 +9,11 @@ export const useDomainsStore = defineStore('domains', () => {
   const error = ref('')
   const planning = ref(false)
   const auditing = ref(false)
+  // Distinguish "no plan/audit has run yet" from "one ran and this domain has
+  // nothing to do" — both look like an empty array otherwise, which would
+  // otherwise render a fresh, unchecked page as if everything were verified.
+  const hasPlanned = ref(false)
+  const hasAudited = ref(false)
 
   // Loads the domain list only. This must never trigger a plan or audit call:
   // those reach live provider APIs and cost latency and rate limit, so they
@@ -28,6 +33,7 @@ export const useDomainsStore = defineStore('domains', () => {
     error.value = ''
     try {
       actions.value = (await api.plan()).actions
+      hasPlanned.value = true
     } catch (e) {
       error.value = (e as Error).message
     } finally {
@@ -40,6 +46,7 @@ export const useDomainsStore = defineStore('domains', () => {
     error.value = ''
     try {
       reports.value = (await api.audit()).reports
+      hasAudited.value = true
     } catch (e) {
       error.value = (e as Error).message
     } finally {
@@ -51,9 +58,11 @@ export const useDomainsStore = defineStore('domains', () => {
 
   // A manual action renders but is never executed, so it does not make a
   // domain unconverged — otherwise a domain with DKIM taken from config would
-  // look permanently pending. A domain with no actions at all (no plan run
-  // yet, or nothing to do) also counts as converged.
-  const isConverged = (domain: string) => actionsFor(domain).every((a) => a.manual)
+  // look permanently pending. But convergence is only meaningful once a plan
+  // has actually run: before that, every domain has zero actions and would be
+  // vacuously "converged", which would read as "checked, all clear" for a
+  // page nothing has checked yet.
+  const isConverged = (domain: string) => hasPlanned.value && actionsFor(domain).every((a) => a.manual)
 
   const reportFor = (domain: string) => reports.value.find((r) => r.domain === domain)
 
@@ -64,6 +73,8 @@ export const useDomainsStore = defineStore('domains', () => {
     error,
     planning,
     auditing,
+    hasPlanned,
+    hasAudited,
     loadDomains,
     runPlan,
     runAudit,
