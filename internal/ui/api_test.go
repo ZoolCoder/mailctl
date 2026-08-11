@@ -129,10 +129,41 @@ func TestUnmatchedAPIMethodIsNotTheShell(t *testing.T) {
 	}
 }
 
-// Static assets must sit behind the same guard as the API: an attacker who
-// merely wants to fingerprint that mailctl ui is running should not be able to
-// read the bundle without the token.
-func TestStaticAssetsRequireAuthentication(t *testing.T) {
+// This is the exact shape a real browser produces loading the app's own
+// bundle: the shell (loaded with ?token=... in the URL) requests "./app.js"
+// as a relative subresource with no query string, and a browser cannot
+// attach a custom header such as X-Mailctl-Token to that request — script,
+// style, font, and image loads simply do not carry one. If static assets
+// required the token, the bundle could never load and the app would render
+// blank. Accept: */* is what a <script src> fetch sends.
+func TestBrowserSubresourceLoadsWithoutToken(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/app.js", nil)
+	req.Host = "127.0.0.1:1234"
+	req.Header.Set("Accept", "*/*")
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 for the bundle loaded with no token, the browser's own shape", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "function") {
+		t.Errorf("body does not look like javascript: %s", rec.Body.String()[:min(200, len(rec.Body.String()))])
+	}
+}
+
+// Static assets are deliberately NOT token-guarded. This inverts what this
+// test asserted before: it used to require 403 without a token, which broke
+// the app in a real browser, because the shell's own "<script
+// src=./app.js>" load can never carry the token — a browser cannot attach a
+// custom header to a subresource request. The bundle is not a secret either
+// way: it is compiled into a public binary and its source lives in a public
+// repository. Do not "fix" this back to requiring the token; see
+// newHostOriginGuard and TestBrowserSubresourceLoadsWithoutToken above for
+// why a token requirement here cannot work at all, not merely why it's
+// undesirable.
+func TestStaticAssetsAreNotTokenGuarded(t *testing.T) {
 	server := testServer(t, &fakePlanner{})
 
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/", nil)
@@ -140,15 +171,49 @@ func TestStaticAssetsRequireAuthentication(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d for an unauthenticated request to /, want 403", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d for an unauthenticated request to /, want 200; static assets carry no secret and cannot be token-guarded", rec.Code)
 	}
 }
 
-// The positive counterpart to TestStaticAssetsRequireAuthentication: a
-// correctly authenticated request must still reach the static handler and get
-// the real app shell, not merely a non-403 status that a black-hole middleware
-// would also produce.
+// Static assets still sit behind Host and Origin: a DNS-rebound page cannot
+// load the shell at all, because rebinding sends a foreign Host.
+func TestStaticAssetsRejectForeignHost(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/", nil)
+	req.Host = "attacker.example"
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d for a foreign Host requesting /, want 403", rec.Code)
+	}
+}
+
+// Static assets still sit behind Host and Origin: a cross-origin page cannot
+// fetch the shell either, because its Origin will not be ours.
+func TestStaticAssetsRejectForeignOrigin(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/app.js", nil)
+	req.Host = "127.0.0.1:1234"
+	req.Header.Set("Origin", "http://evil.example")
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d for a foreign Origin requesting /app.js, want 403", rec.Code)
+	}
+}
+
+// A correctly authenticated request must still reach the static handler and
+// get the real app shell, not merely a non-403 status that a black-hole
+// middleware would also produce. The token header here is incidental — the
+// launch URL's browser sends it on the initial navigation before it has even
+// loaded the app that would stop sending it — and must not be required by
+// the guard; the point of this test is that Host and Origin still let it
+// through.
 func TestStaticAssetsServeTheShellOnceAuthenticated(t *testing.T) {
 	server := testServer(t, &fakePlanner{})
 

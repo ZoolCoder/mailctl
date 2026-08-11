@@ -5,11 +5,10 @@ import (
 	"net/http"
 )
 
-// newAuth guards every route. Three things must hold: the request carries the
-// per-process token exactly once, its Host is the address we are actually
-// listening on, and its Origin — mandatory on every state-changing method,
-// absent only because a browser omits it on a safe top-level navigation — is
-// ours.
+// hostAndOriginOK reports whether r satisfies the two checks every guard in
+// this package shares: its Host must be exactly the address this server is
+// listening on, and its Origin — when a browser is obligated to send one —
+// must be ours.
 //
 // The Host check defends against a browser: DNS rebinding lets an
 // attacker-controlled name resolve to 127.0.0.1, and in that attack the
@@ -17,8 +16,33 @@ import (
 // is not meant to, defend against a local process constructing an
 // absolute-form request-target that overrides Host parsing — no browser can
 // produce that shape, and a local process gains nothing from it, since it
-// already has an unauthenticated path straight to this port. Stopping a
-// local process is the token's job, not the Host check's.
+// already has an unauthenticated path straight to this port.
+//
+// A missing Origin is unavoidable on a safe top-level navigation (the
+// browser doesn't send one there), but browsers send Origin on every
+// state-changing request, same-origin included, so requiring it there costs
+// a real browser nothing and closes a free pass for a caller that simply
+// never sets Origin.
+func hostAndOriginOK(r *http.Request, host, expectedOrigin string) bool {
+	if r.Host != host {
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	switch {
+	case origin != "" && origin != expectedOrigin:
+		return false
+	case origin == "" && r.Method != http.MethodGet && r.Method != http.MethodHead:
+		return false
+	}
+	return true
+}
+
+// newAuth guards the API. Three things must hold: the request carries the
+// per-process token exactly once, and it passes both checks in
+// hostAndOriginOK. Stopping a local process that has no browser to speak of
+// is the token's job, not the Host or Origin checks' — those two exist to
+// stop a browser page, which is why the static asset guard below can share
+// them without sharing the token requirement.
 //
 // token must be non-empty. An empty token would make the constant-time
 // compare below vacuously true for a request carrying no credential at all,
@@ -32,22 +56,7 @@ func newAuth(token, host string) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Host != host {
-				forbid(w)
-				return
-			}
-
-			// A missing Origin is unavoidable on a safe top-level navigation
-			// (the browser doesn't send one there), but browsers send Origin on
-			// every state-changing request, same-origin included, so requiring
-			// it there costs the real app nothing and closes a free pass for a
-			// caller that simply never sets Origin.
-			origin := r.Header.Get("Origin")
-			switch {
-			case origin != "" && origin != expectedOrigin:
-				forbid(w)
-				return
-			case origin == "" && r.Method != http.MethodGet && r.Method != http.MethodHead:
+			if !hostAndOriginOK(r, host, expectedOrigin) {
 				forbid(w)
 				return
 			}
@@ -78,6 +87,30 @@ func newAuth(token, host string) func(http.Handler) http.Handler {
 			// requires equal-length inputs to be meaningful.
 			if len(supplied) != len(token) ||
 				subtle.ConstantTimeCompare([]byte(supplied), []byte(token)) != 1 {
+				forbid(w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// newHostOriginGuard guards the static bundle with the Host and Origin
+// checks only — no token. The bundle is not a secret: it is compiled into a
+// public binary and its source lives in a public repository. Requiring a
+// token here would also not work: the shell loads its own bundle as a
+// relative subresource (`<script src="./app.js">`), with no query string,
+// and a browser cannot attach a custom header such as X-Mailctl-Token to a
+// script, style, font, or image request. What keeping Host and Origin here
+// still buys: a DNS-rebound page cannot load the app shell at all, because
+// rebinding sends a foreign Host, and a cross-origin page fetching the shell
+// directly is refused too, because its Origin will not be ours.
+func newHostOriginGuard(host string) func(http.Handler) http.Handler {
+	expectedOrigin := "http://" + host
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !hostAndOriginOK(r, host, expectedOrigin) {
 				forbid(w)
 				return
 			}

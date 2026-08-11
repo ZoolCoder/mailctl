@@ -60,22 +60,30 @@ func New(deps Deps) (http.Handler, error) {
 	}
 	s := &server{deps: deps}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/domains", s.handleDomains)
-	mux.HandleFunc("POST /api/plan", s.handlePlan)
-	mux.HandleFunc("POST /api/audit", s.handleAudit)
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/domains", s.handleDomains)
+	api.HandleFunc("POST /api/plan", s.handlePlan)
+	api.HandleFunc("POST /api/audit", s.handleAudit)
 	// Everything under /api/ that did not match above ends here rather than at
 	// the SPA fallback. This is not defensive tidying: it was measured. With a
 	// "/" catch-all registered, ServeMux does NOT answer 405 for a
 	// method-pattern mismatch — `GET /api/plan` falls through to "/" and returns
 	// the HTML shell with 200. A client would then parse a page as JSON, and the
 	// GET-refusal test below would pass against a route that quietly served HTML.
-	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
-	mux.Handle("/", static)
 
-	return newAuth(deps.Token, deps.Host)(mux), nil
+	// Only /api/* reaches a credential — the operator's Cloudflare token, via
+	// the engine behind Planner — so only /api/* gets the full token guard.
+	// The static bundle gets Host and Origin only: see newHostOriginGuard for
+	// why the token cannot be required there, and would buy nothing if it
+	// could be.
+	mux := http.NewServeMux()
+	mux.Handle("/api/", newAuth(deps.Token, deps.Host)(api))
+	mux.Handle("/", newHostOriginGuard(deps.Host)(static))
+
+	return mux, nil
 }
 
 type server struct{ deps Deps }
