@@ -152,7 +152,8 @@ describe('domains store', () => {
       })
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ error: 'Cloudflare GET /zones: 403' }),
+        status: 500,
+        text: async () => JSON.stringify({ error: 'Cloudflare GET /zones: 403' }),
       })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -176,7 +177,8 @@ describe('domains store', () => {
       })
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ error: 'Purelymail GET /domains: 500' }),
+        status: 502,
+        text: async () => JSON.stringify({ error: 'Purelymail GET /domains: 500' }),
       })
     vi.stubGlobal('fetch', fetchMock)
 

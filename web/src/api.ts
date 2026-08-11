@@ -21,11 +21,49 @@ async function request<T>(path: string, method: 'GET' | 'POST'): Promise<T> {
     method,
     headers: { 'X-Mailctl-Token': token },
   })
-  const body = await response.json()
+
+  // The status must be checked before any attempt to parse the body: the
+  // auth guard's failure response is plain text ("forbidden\n"), never JSON,
+  // so calling response.json() first turns every 401/403 into a confusing
+  // "Unexpected token" parse error instead of anything about authentication.
   if (!response.ok) {
-    throw new Error(body?.error ?? `${method} ${path} failed with ${response.status}`)
+    throw new Error(await describeFailure(response))
   }
-  return body as T
+
+  try {
+    return (await response.json()) as T
+  } catch {
+    throw new Error(`${method} ${path} returned a response that was not JSON`)
+  }
+}
+
+// A 401/403 here is almost always the session token going stale — a plain
+// browser reload strips it from the URL by design (see the top of this
+// file), or `mailctl ui` is no longer running. That is a completely
+// different situation from a provider error, and demands a completely
+// different response (reopen the tab, versus fix a credential), so it gets
+// its own message instead of falling into generic body parsing.
+async function describeFailure(response: Response): Promise<string> {
+  if (response.status === 401 || response.status === 403) {
+    return (
+      'Session token missing or no longer valid. Reopen the URL printed by ' +
+      '`mailctl ui` (relaunch it if the command is no longer running).'
+    )
+  }
+
+  const text = await response.text()
+  if (!text) {
+    return `Request failed with ${response.status}`
+  }
+  try {
+    const body = JSON.parse(text)
+    if (body && typeof body.error === 'string') {
+      return body.error
+    }
+  } catch {
+    // Not JSON — the raw text is the best description available.
+  }
+  return text
 }
 
 export interface Domain {
