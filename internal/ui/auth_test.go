@@ -229,3 +229,47 @@ func TestAuthRejectsNonSafeMethodWithNoToken(t *testing.T) {
 		t.Errorf("status = %d, want 403 for a POST with no token", rec.Code)
 	}
 }
+
+// The query fallback is scoped to a document navigation via acceptsHTML, not
+// merely to GET/HEAD: <img>, <script>, and other subresource requests send a
+// GET with a non-HTML Accept list, and the correct token in the query alone
+// must not admit them — only the app's own navigation, which accepts HTML,
+// may use the query channel.
+func TestAuthRejectsQueryTokenWithNonHTMLAccept(t *testing.T) {
+	handler := newAuth("secret", "127.0.0.1:1234")(allowed())
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/?token=secret", nil)
+	req.Host = "127.0.0.1:1234"
+	req.Header.Set("Accept", "image/avif,image/webp,*/*;q=0.8")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 for a query token on a non-HTML-accepting request", rec.Code)
+	}
+}
+
+// The Origin rule must not have swallowed the positive case: a state-changing
+// request carrying both a correct token and a correct Origin — exactly what
+// the SPA itself sends on POST /api/plan and POST /api/audit — must be
+// admitted and must reach the downstream handler. Asserting only a non-403
+// status would pass even for a middleware that writes nothing at all, since
+// httptest.NewRecorder defaults to 200; the "reached" body is what proves the
+// request was actually forwarded.
+func TestAuthAcceptsNonSafeMethodWithTokenAndOrigin(t *testing.T) {
+	handler := newAuth("secret", "127.0.0.1:1234")(allowed())
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:1234/api/plan", nil)
+	req.Host = "127.0.0.1:1234"
+	req.Header.Set("X-Mailctl-Token", "secret")
+	req.Header.Set("Origin", "http://127.0.0.1:1234")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 for a POST with a correct token and Origin", rec.Code)
+	}
+	if rec.Body.String() != reached {
+		t.Errorf("body = %q, want %q; the guard must have forwarded to next", rec.Body.String(), reached)
+	}
+}
