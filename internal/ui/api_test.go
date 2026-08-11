@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,6 +20,9 @@ type fakePlanner struct {
 	planned  plan.Plan
 	planErr  error
 	planned_ int // times Plan was called
+	// desiredErr maps a domain name to the error Desired should return for it.
+	// A domain absent from this map succeeds with no records.
+	desiredErr map[string]error
 }
 
 func (f *fakePlanner) Domains() ([]config.Domain, error) { return f.domains, nil }
@@ -26,7 +30,10 @@ func (f *fakePlanner) Plan(context.Context) (plan.Plan, error) {
 	f.planned_++
 	return f.planned, f.planErr
 }
-func (f *fakePlanner) Desired(context.Context, config.Domain) ([]dns.Record, error) {
+func (f *fakePlanner) Desired(_ context.Context, d config.Domain) ([]dns.Record, error) {
+	if err, ok := f.desiredErr[d.Name]; ok {
+		return nil, err
+	}
 	return nil, nil
 }
 
@@ -205,21 +212,71 @@ func TestNewRejectsNilAuditor(t *testing.T) {
 	}
 }
 
-// handlePlan and handleAudit are 501 stubs pending Task 8's real bodies, but
-// the routes themselves — POST /api/plan and POST /api/audit — are this
-// task's wiring, and Task 8 needs a red test if it moves either handler off
-// its method or out from behind the auth wrapper. Each stub is pinned in
-// both directions: authenticated reaches the stub (501), unauthenticated
-// never does (403).
-
-func TestPlanStubIsReachableOnceAuthenticated(t *testing.T) {
-	server := testServer(t, &fakePlanner{})
+// TestPlanEndpointReturnsTheProjectedPlan pins the positive counterpart to
+// TestPlanEndpointRefusesGET below: an authenticated POST must reach the real
+// planjson projection, not merely a non-error status. httptest.NewRecorder
+// starts at 200, so a handler that writes nothing would pass a bare status
+// check; asserting on the body's shape is what catches that.
+func TestPlanEndpointReturnsTheProjectedPlan(t *testing.T) {
+	fake := &fakePlanner{planned: plan.Plan{Actions: []plan.Action{
+		{Op: plan.OpCreate, Resource: "mailbox", Domain: "example.com",
+			Provider: "purelymail", Detail: "create contact@example.com"},
+	}}}
+	server := testServer(t, fake)
 
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, authed(http.MethodPost, "/api/plan"))
 
-	if rec.Code != http.StatusNotImplemented {
-		t.Errorf("status = %d for authenticated POST /api/plan, want 501", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body: %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		SchemaVersion int `json:"schemaVersion"`
+		Actions       []struct {
+			Op     string `json:"op"`
+			Detail string `json:"detail"`
+		} `json:"actions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("body is not json: %v — %s", err, rec.Body.String())
+	}
+	if doc.SchemaVersion != 1 || len(doc.Actions) != 1 || doc.Actions[0].Op != "CREATE" {
+		t.Errorf("plan body = %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "func") {
+		t.Error("the response must not carry anything executable")
+	}
+}
+
+// A GET must not plan: planning calls provider APIs, and a GET is what a
+// prefetch, a crawler, or an address-bar visit issues.
+func TestPlanEndpointRefusesGET(t *testing.T) {
+	fake := &fakePlanner{}
+	server := testServer(t, fake)
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, authed(http.MethodGet, "/api/plan"))
+
+	if rec.Code == http.StatusOK {
+		t.Error("GET /api/plan returned 200; planning must require an explicit POST")
+	}
+	if strings.Contains(rec.Body.String(), "<div id=\"app\"") {
+		t.Error("GET /api/plan served the html shell; an api path must never fall through to the spa")
+	}
+	if fake.planned_ != 0 {
+		t.Errorf("Plan ran %d times for a GET; a prefetch must not spend provider calls", fake.planned_)
+	}
+}
+
+// An unknown /api/ path must be a 404, not the html shell.
+func TestUnknownAPIPathIsNotTheShell(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, authed(http.MethodGet, "/api/nonexistent"))
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d for an unknown api path, want 404 — body: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -236,14 +293,96 @@ func TestPlanStubRequiresAuthentication(t *testing.T) {
 	}
 }
 
-func TestAuditStubIsReachableOnceAuthenticated(t *testing.T) {
-	server := testServer(t, &fakePlanner{})
+// TestAuditEndpointReturnsOneReportPerDomain pins the positive counterpart to
+// TestAuditReportsPerDomainErrorsWithoutFailingTheRun below: an authenticated
+// POST must reach the real per-domain audit, with each domain's own Audit
+// result reflected in the response rather than a shared or default value.
+func TestAuditEndpointReturnsOneReportPerDomain(t *testing.T) {
+	fake := &fakePlanner{domains: []config.Domain{
+		{Name: "good.example"}, {Name: "bad.example"},
+	}}
+	handler, err := New(Deps{
+		Token: "secret", Host: "127.0.0.1:1234", Planner: fake,
+		Audit: func(_ context.Context, d config.Domain, _ []dns.Record) audit.Report {
+			return audit.Report{Domain: d.Name, Checks: []audit.Check{
+				{Name: "MX", OK: d.Name == "good.example"},
+			}}
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
 
 	rec := httptest.NewRecorder()
-	server.ServeHTTP(rec, authed(http.MethodPost, "/api/audit"))
+	handler.ServeHTTP(rec, authed(http.MethodPost, "/api/audit"))
 
-	if rec.Code != http.StatusNotImplemented {
-		t.Errorf("status = %d for authenticated POST /api/audit, want 501", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var doc struct {
+		Reports []struct {
+			Domain string `json:"domain"`
+			OK     bool   `json:"ok"`
+		} `json:"reports"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("body is not json: %v", err)
+	}
+	if len(doc.Reports) != 2 {
+		t.Fatalf("got %d reports, want one per domain", len(doc.Reports))
+	}
+	if !doc.Reports[0].OK || doc.Reports[1].OK {
+		t.Errorf("reports = %+v, want good.example passing and bad.example failing", doc.Reports)
+	}
+}
+
+// One domain's Desired call failing must not blank the whole view: the
+// operator needs to see the domains that did resolve, with the failing one
+// carrying its own error inline.
+func TestAuditReportsPerDomainErrorsWithoutFailingTheRun(t *testing.T) {
+	fake := &fakePlanner{
+		domains: []config.Domain{{Name: "good.example"}, {Name: "bad.example"}},
+		desiredErr: map[string]error{
+			"bad.example": errors.New("resolve desired records: dns lookup failed"),
+		},
+	}
+	handler, err := New(Deps{
+		Token: "secret", Host: "127.0.0.1:1234", Planner: fake,
+		Audit: func(_ context.Context, d config.Domain, _ []dns.Record) audit.Report {
+			return audit.Report{Domain: d.Name, Checks: []audit.Check{{Name: "MX", OK: true}}}
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authed(http.MethodPost, "/api/audit"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — a single domain's error must not fail the run: %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Reports []struct {
+			Domain string `json:"domain"`
+			OK     bool   `json:"ok"`
+			Error  string `json:"error,omitempty"`
+		} `json:"reports"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("body is not json: %v — %s", err, rec.Body.String())
+	}
+	if len(doc.Reports) != 2 {
+		t.Fatalf("got %d reports, want one per domain even though one failed", len(doc.Reports))
+	}
+	if doc.Reports[0].Domain != "good.example" || doc.Reports[0].Error != "" {
+		t.Errorf("good.example report = %+v, want no error", doc.Reports[0])
+	}
+	if doc.Reports[1].Domain != "bad.example" || doc.Reports[1].Error == "" {
+		t.Errorf("bad.example report = %+v, want its own error inline", doc.Reports[1])
+	}
+	if fake.planned_ != 0 {
+		t.Errorf("Plan ran %d times serving /api/audit; audit must not run a full plan", fake.planned_)
 	}
 }
 
