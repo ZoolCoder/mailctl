@@ -1229,11 +1229,20 @@ func (s *server) handleDomains(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"domains": out})
 }
 
+// writeJSON encodes into a buffer before touching the response, so an encode
+// failure can still become a 500. Encoding straight to the ResponseWriter looks
+// simpler and is a trap: a payload json cannot marshal at all (a func or channel
+// field) fails before the first byte, and discarding that error leaves the client
+// with a 200 and an empty body — a silent success for a failed request, with no
+// server-side trail either, because this path may not log.
 func writeJSON(w http.ResponseWriter, payload any) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
+		writeError(w, err)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	// Any encode failure here has already written a partial body, so there is
-	// nothing useful to report to the client.
-	_ = json.NewEncoder(w).Encode(payload)
+	_, _ = w.Write(buf.Bytes())
 }
 
 // writeError sends the error text. Provider errors are safe to show: the CLI
