@@ -12,3 +12,8 @@ build/
 # working notes: ledgers, briefs and review packages. These reference real
 # domains and infrastructure and must never be committed.
 .superpowers/
+
+# A personal ~/.gitignore_global with a `dist/` rule would otherwise hide this
+# directory. The bundle is committed on purpose: `go install` cannot run npm.
+!internal/ui/dist/
+!internal/ui/dist/**
