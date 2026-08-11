@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -32,7 +33,68 @@ import (
 )
 
 // version is overridden at build time with -ldflags "-X main.version=...".
+// When it isn't, resolveVersion falls back to the module version Go itself
+// embeds, so a "go install ...@v0.1.0" binary still reports something useful.
 var version = "dev"
+
+// resolveVersion picks what "mailctl version" prints. ldflagsVersion, if set
+// to anything other than the "dev" default, wins outright: a release
+// pipeline may want to stamp an exact string. Otherwise mainVersion is used
+// when it's a real version; "(devel)" and "" (a working-tree build, or a Go
+// version too old to embed build info) keep the existing "dev" wording
+// rather than surfacing "(devel)" to a user. For a working-tree build, a
+// truncated revision is appended, since that's what someone can actually
+// hand back in a bug report; "modified" marks an unclean tree.
+func resolveVersion(ldflagsVersion, mainVersion, revision string, modified bool) string {
+	if ldflagsVersion != "dev" {
+		return ldflagsVersion
+	}
+
+	v := mainVersion
+	if v == "" || v == "(devel)" {
+		v = "dev"
+	}
+
+	if v != "dev" {
+		return v
+	}
+
+	if len(revision) > 12 {
+		revision = revision[:12]
+	}
+	switch {
+	case revision != "" && modified:
+		return fmt.Sprintf("%s (%s, modified)", v, revision)
+	case revision != "":
+		return fmt.Sprintf("%s (%s)", v, revision)
+	default:
+		return v
+	}
+}
+
+// buildVersion reads the module version Go embeds via runtime/debug and
+// resolves it against version, the possibly ldflags-overridden default.
+// ReadBuildInfo returns (info, ok) and can't be faked in a test, so this is
+// the single untestable line; resolveVersion carries the actual logic.
+func buildVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return resolveVersion(version, "", "", false)
+	}
+
+	var revision string
+	var modified bool
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
+		}
+	}
+
+	return resolveVersion(version, info.Main.Version, revision, modified)
+}
 
 const usage = `mailctl reconciles email configuration from a YAML file.
 
@@ -138,7 +200,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	switch command {
 	case "version":
-		fmt.Fprintln(stdout, "mailctl", version)
+		fmt.Fprintln(stdout, "mailctl", buildVersion())
 		return nil
 	case "help":
 		fmt.Fprint(stdout, usage)

@@ -882,3 +882,73 @@ func TestApplyAcceptsPruneWithPruneMailboxes(t *testing.T) {
 		t.Fatalf("run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout.String(), stderr.String())
 	}
 }
+
+func TestResolveVersion(t *testing.T) {
+	tests := []struct {
+		name           string
+		ldflagsVersion string
+		mainVersion    string
+		revision       string
+		modified       bool
+		want           string
+	}{
+		{
+			name:           "ldflags version wins over a real module version",
+			ldflagsVersion: "v0.1.0-rc1",
+			mainVersion:    "v0.1.0",
+			revision:       "a1b2c3d4e5f6a7b8",
+			modified:       true,
+			want:           "v0.1.0-rc1",
+		},
+		{
+			name:           "real module version is used",
+			ldflagsVersion: "dev",
+			mainVersion:    "v0.1.0",
+			want:           "v0.1.0",
+		},
+		{
+			name:           "(devel) falls back to dev wording",
+			ldflagsVersion: "dev",
+			mainVersion:    "(devel)",
+			want:           "dev",
+		},
+		{
+			name:           "empty module version falls back to dev wording",
+			ldflagsVersion: "dev",
+			mainVersion:    "",
+			want:           "dev",
+		},
+		{
+			name:           "revision is appended and truncated to 12 characters",
+			ldflagsVersion: "dev",
+			mainVersion:    "(devel)",
+			revision:       "a1b2c3d4e5f6a7b8c9d0",
+			want:           "dev (a1b2c3d4e5f6)",
+		},
+		{
+			name:           "modified tree is marked",
+			ldflagsVersion: "dev",
+			mainVersion:    "(devel)",
+			revision:       "a1b2c3d4e5f6a7b8c9d0",
+			modified:       true,
+			want:           "dev (a1b2c3d4e5f6, modified)",
+		},
+		{
+			name:           "missing revision produces no empty parentheses",
+			ldflagsVersion: "dev",
+			mainVersion:    "(devel)",
+			modified:       true,
+			want:           "dev",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveVersion(tt.ldflagsVersion, tt.mainVersion, tt.revision, tt.modified)
+			if got != tt.want {
+				t.Errorf("resolveVersion(%q, %q, %q, %v) = %q, want %q",
+					tt.ldflagsVersion, tt.mainVersion, tt.revision, tt.modified, got, tt.want)
+			}
+		})
+	}
+}
