@@ -42,8 +42,14 @@ func TestFromPlanProjectsEveryFieldExceptDo(t *testing.T) {
 	if first.Manual {
 		t.Error("a CREATE action must not be marked manual")
 	}
+	if first.ID != "0" {
+		t.Errorf("first action ID = %q, want %q", first.ID, "0")
+	}
 	if !got.Actions[1].Manual {
 		t.Error("an OpManual action must be marked manual; it renders but never executes")
+	}
+	if got.Actions[1].ID != "1" {
+		t.Errorf("second action ID = %q, want %q", got.Actions[1].ID, "1")
 	}
 }
 
@@ -64,6 +70,25 @@ func TestPlanJSONCarriesNoExecutableField(t *testing.T) {
 		if bytes.Contains(raw, []byte(forbidden)) {
 			t.Errorf("serialised plan contains %q: %s", forbidden, raw)
 		}
+	}
+}
+
+// Provider is optional on actions like DNS records that have no unique provider.
+// An empty provider must not appear in JSON so a consumer can safely assume its
+// presence means a provider is required to execute this action.
+func TestEmptyProviderSerialisesAsOmitted(t *testing.T) {
+	in := plan.Plan{Actions: []plan.Action{{
+		Op: plan.OpCreate, Resource: "dns", Domain: "example.com",
+		Detail: "add MX record",
+		// Provider is deliberately empty
+	}}}
+
+	raw, err := json.Marshal(FromPlan(in))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if bytes.Contains(raw, []byte(`"provider"`)) {
+		t.Errorf("empty provider serialised in JSON: %s", raw)
 	}
 }
 
