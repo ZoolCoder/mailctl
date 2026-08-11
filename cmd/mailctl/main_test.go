@@ -1,18 +1,26 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/zoolcoder/mailctl/internal/config"
 	"github.com/zoolcoder/mailctl/internal/configedit"
+	"github.com/zoolcoder/mailctl/internal/engine"
+	"github.com/zoolcoder/mailctl/internal/mail"
 )
 
 func read(t *testing.T, path string) string {
@@ -1017,5 +1025,179 @@ func TestResolveVersion(t *testing.T) {
 					tt.ldflagsVersion, tt.mainVersion, tt.revision, tt.modified, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestUICommandIsRecognised is the acceptance test for the ui subcommand
+// itself: -h on it must exit zero with usage, like every other command.
+func TestUICommandIsRecognised(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"ui", "-h"}, nil, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("ui -h returned %v, want nil — stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "ui") {
+		t.Errorf("usage does not mention the ui command: %s", stdout.String())
+	}
+}
+
+// TestUsageListsTheUICommand guards the operator-visible surface: an
+// operator reading -h/help has no other way to discover the command.
+func TestUsageListsTheUICommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"help"}, nil, &stdout, &stderr); err != nil {
+		t.Fatalf("help: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "mailctl ui") {
+		t.Errorf("usage omits the ui command:\n%s", stdout.String())
+	}
+}
+
+// TestUIFlagsAreRejectedOutsideUI mirrors
+// TestScopedFlagsAreRejectedOutsidePlanAndApply for -addr and -no-browser:
+// both only mean something to the server ui starts, so every other command,
+// including plan and apply, must reject them — not silently ignore them.
+func TestUIFlagsAreRejectedOutsideUI(t *testing.T) {
+	tests := []struct {
+		args  []string
+		label string
+	}{
+		{[]string{"plan"}, "plan"},
+		{[]string{"apply", "-yes"}, "apply"},
+		{[]string{"audit"}, "audit"},
+		{[]string{"import", "-domain", "test.com", "-provider", "cfrouting"}, "import"},
+		{[]string{"mailbox", "add", "new@test.com"}, "mailbox add"},
+		{[]string{"alias", "add", "info", "-alias-domain", "test.com", "-to", "box@test.com"}, "alias add"},
+		{[]string{"apppass", "create", "box@test.com"}, "apppass create"},
+	}
+	flagsToReject := []struct{ set, name string }{
+		{"-addr=127.0.0.1:0", "addr"},
+		{"-no-browser", "no-browser"},
+	}
+
+	for _, tt := range tests {
+		for _, flag := range flagsToReject {
+			t.Run(tt.label+" "+flag.name, func(t *testing.T) {
+				var stdout, stderr strings.Builder
+				args := append(append([]string{}, tt.args...), flag.set)
+				err := run(args, strings.NewReader(""), &stdout, &stderr)
+
+				wantSubstr := fmt.Sprintf("flag -%s is not valid for %s", flag.name, tt.label)
+				if err == nil || !strings.Contains(err.Error(), wantSubstr) {
+					t.Fatalf("err = %v, want it to contain %q", err, wantSubstr)
+				}
+			})
+		}
+	}
+}
+
+// TestUICommandContextIsCancelledByInterruptNotTimeout pins the requirement
+// that ui, a foreground server an operator leaves open indefinitely, gets a
+// context cancelled by interrupt rather than the 10-minute deadline every
+// other command uses — a fixed timeout would kill the server out from under
+// a working operator.
+func TestUICommandContextIsCancelledByInterruptNotTimeout(t *testing.T) {
+	ctx, cancel := commandContext("ui")
+	defer cancel()
+	if _, ok := ctx.Deadline(); ok {
+		t.Error("ui's context has a deadline; it must be cancelled by interrupt instead")
+	}
+}
+
+// TestOtherCommandsKeepTheTenMinuteTimeout guards against commandContext
+// overreaching: every command other than ui must keep exactly the deadline
+// behaviour it always had.
+func TestOtherCommandsKeepTheTenMinuteTimeout(t *testing.T) {
+	for _, command := range []string{"plan", "apply", "audit", "import", "mailbox", "alias", "apppass"} {
+		ctx, cancel := commandContext(command)
+		defer cancel()
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Errorf("%s: context has no deadline, want the 10-minute timeout", command)
+			continue
+		}
+		if remaining := time.Until(deadline); remaining <= 0 || remaining > 10*time.Minute {
+			t.Errorf("%s: deadline %v from now, want within (0, 10m]", command, remaining)
+		}
+	}
+}
+
+// syncBuffer is a concurrency-safe io.Writer with a String method, so a test
+// can poll a server's stdout from a goroutine other than the one writing to
+// it without racing those writes.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+// waitForHost polls out until serveUI's startup line appears and returns the
+// host:port it printed.
+func waitForHost(t *testing.T, out *syncBuffer) string {
+	t.Helper()
+	re := regexp.MustCompile(`http://([^/]+)/`)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if m := re.FindStringSubmatch(out.String()); m != nil {
+			return m[1]
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("serveUI did not print a listening URL in time; got:\n%s", out.String())
+	return ""
+}
+
+// TestUIRejectsRawOptionsStar is the regression guard for a security-review
+// finding: Go's net/http answers a raw "OPTIONS * HTTP/1.1" request 200 via
+// an internal handler substituted in before the configured Handler ever
+// runs (see net/http's serverHandler.ServeHTTP), bypassing every middleware
+// including the auth guard in internal/ui — with no token and regardless of
+// Host. The fix is DisableGeneralOptionsHandler: true on the *http.Server
+// serveUI builds, which stops that substitution so the request reaches the
+// real, auth-guarded handler chain instead and gets rejected. This test
+// supplies no token at all: it only needs the raw request to stop being
+// answered 200 by something the auth guard never saw.
+func TestUIRejectsRawOptionsStar(t *testing.T) {
+	runner := engine.New(config.Config{}, nil, nil, mail.Deps{}, engine.Options{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	out := &syncBuffer{}
+	done := make(chan error, 1)
+	go func() { done <- serveUI(ctx, runner, "127.0.0.1:0", false, out) }()
+
+	host := waitForHost(t, out)
+
+	conn, err := net.Dial("tcp", host)
+	if err != nil {
+		t.Fatalf("dial %s: %v", host, err)
+	}
+	fmt.Fprintf(conn, "OPTIONS * HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
+
+	statusLine, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		t.Fatalf("read status line: %v", err)
+	}
+	_ = conn.Close()
+
+	if strings.Contains(statusLine, " 200 ") {
+		t.Errorf("OPTIONS * was answered 200 with no token and no Origin: %q", statusLine)
+	}
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Errorf("serveUI: %v", err)
 	}
 }

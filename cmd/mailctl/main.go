@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/zoolcoder/mailctl/internal/audit"
@@ -112,6 +114,7 @@ Usage:
   mailctl alias rm  <local-part>     [flags]   remove an alias from the config only
   mailctl apppass create <address>   [flags]   create an application credential
   mailctl apppass rm     <address>   [flags]   delete an application credential
+  mailctl ui                         [flags]   run a local read-only web UI
   mailctl version
 
 Flags:
@@ -129,6 +132,8 @@ Flags:
   -alias-domain string  domain the alias belongs to (alias add|rm)
   -to value             alias target address; repeat for several (alias add)
   -name string          app credential label (apppass)
+  -addr string          address for the ui to listen on (ui only, default "127.0.0.1:0")
+  -no-browser           do not open a browser (ui only)
 
 Environment:
   CLOUDFLARE_API_TOKEN   required
@@ -208,7 +213,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "help":
 		fmt.Fprint(stdout, usage)
 		return nil
-	case "plan", "apply", "audit", "import", "mailbox", "alias", "apppass":
+	case "plan", "apply", "audit", "import", "mailbox", "alias", "apppass", "ui":
 	default:
 		fmt.Fprint(stderr, usage)
 		return fmt.Errorf("unknown subcommand %q", command)
@@ -238,6 +243,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	appPassName := flags.String("name", "", "app credential label (apppass)")
 	planJSON := flags.Bool("json", false,
 		"print the plan as JSON on stdout instead of the human summary")
+	uiAddr := flags.String("addr", "127.0.0.1:0",
+		"address for the ui to listen on; port 0 lets the kernel choose")
+	uiNoBrowser := flags.Bool("no-browser", false, "do not open a browser")
 	flags.Var(&domains, "domain", "limit to this domain; repeat for several")
 	flags.Var(&aliasTargets, "to", "alias target address; repeat for several")
 
@@ -281,7 +289,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	secrets := secret.NewResolver(os.Getenv)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := commandContext(command)
 	defer cancel()
 
 	// mailbox and alias dispatch here, ahead of the CLOUDFLARE_API_TOKEN check
@@ -369,28 +377,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		command = "apply"
 	}
 
-	// Every command still reachable here (plan, apply, audit, import, and the
-	// mailbox/alias add fallthrough above) reconciles against Cloudflare.
-	cloudflareToken := os.Getenv("CLOUDFLARE_API_TOKEN")
-	if cloudflareToken == "" {
-		return errors.New("CLOUDFLARE_API_TOKEN is required")
-	}
-
-	api := cfapi.New(cfg.Cloudflare.BaseURL, cloudflareToken)
-
-	var deployer *worker.Deployer
-	if cfg.Cloudflare.AccountID != "" {
-		deployer = worker.New(api, cfg.Cloudflare.AccountID)
-	}
-
-	zones := cfdns.New(api, cfg.Cloudflare.TTL)
-
-	deps := mail.Deps{
-		Cloudflare:        api,
-		AccountID:         cfg.Cloudflare.AccountID,
-		PurelymailBaseURL: cfg.Purelymail.BaseURL,
-		Zones:             zones,
-		Getenv:            os.Getenv,
+	// Every command still reachable here (plan, apply, audit, import, ui, and
+	// the mailbox/alias add fallthrough above) reconciles against Cloudflare.
+	runner, deps, err := buildEngine(cfg, domains, *prune, *pruneMailboxes, *replaceDNS, secrets)
+	if err != nil {
+		return err
 	}
 
 	if command == "import" {
@@ -427,13 +418,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return nil
 	}
 
-	runner := engine.New(cfg, zones, deployer, deps, engine.Options{
-		Domains:        domains,
-		Prune:          *prune,
-		PruneMailboxes: *pruneMailboxes,
-		ReplaceDNS:     *replaceDNS,
-		Secrets:        secrets,
-	})
+	if command == "ui" {
+		return serveUI(ctx, runner, *uiAddr, !*uiNoBrowser, stdout)
+	}
 
 	if command == "audit" {
 		domains, err := runner.Domains()
@@ -506,6 +493,61 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	return applyErr
 }
 
+// commandContext returns the context run's command should execute under.
+// ui is a foreground server an operator leaves open for as long as they're
+// working, so it is cancelled by interrupt (Ctrl-C or a signal from a
+// supervisor), not by a deadline that would kill it out from under them
+// mid-session. Every other command keeps the original 10-minute deadline,
+// since a stuck network call there should eventually give up rather than
+// hang forever.
+func commandContext(command string) (context.Context, context.CancelFunc) {
+	if command == "ui" {
+		return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	}
+	return context.WithTimeout(context.Background(), 10*time.Minute)
+}
+
+// buildEngine wires the Cloudflare API client, the optional Worker deployer,
+// the DNS zone provider, and the mail.Deps bundle every remaining command
+// needs, then builds the engine those commands reconcile through. import
+// stops short of the engine: it only needs the returned deps, built the same
+// way, to open a single provider.
+func buildEngine(cfg config.Config, domains domainList, prune, pruneMailboxes, replaceDNS bool,
+	secrets *secret.Resolver) (*engine.Engine, mail.Deps, error) {
+
+	cloudflareToken := os.Getenv("CLOUDFLARE_API_TOKEN")
+	if cloudflareToken == "" {
+		return nil, mail.Deps{}, errors.New("CLOUDFLARE_API_TOKEN is required")
+	}
+
+	api := cfapi.New(cfg.Cloudflare.BaseURL, cloudflareToken)
+
+	var deployer *worker.Deployer
+	if cfg.Cloudflare.AccountID != "" {
+		deployer = worker.New(api, cfg.Cloudflare.AccountID)
+	}
+
+	zones := cfdns.New(api, cfg.Cloudflare.TTL)
+
+	deps := mail.Deps{
+		Cloudflare:        api,
+		AccountID:         cfg.Cloudflare.AccountID,
+		PurelymailBaseURL: cfg.Purelymail.BaseURL,
+		Zones:             zones,
+		Getenv:            os.Getenv,
+	}
+
+	runner := engine.New(cfg, zones, deployer, deps, engine.Options{
+		Domains:        domains,
+		Prune:          prune,
+		PruneMailboxes: pruneMailboxes,
+		ReplaceDNS:     replaceDNS,
+		Secrets:        secrets,
+	})
+
+	return runner, deps, nil
+}
+
 // shift returns the first element of args and the rest, or two empty/nil
 // values if args is empty.
 func shift(args []string) (string, []string) {
@@ -553,12 +595,17 @@ func requireDomainInScope(editedDomain string, scope domainList) error {
 //
 // -json is scoped the other way around: it is a rendering concern for plan
 // alone, so apply must reject it rather than silently ignore it.
+//
+// -addr and -no-browser only mean anything to the server ui starts, so every
+// other command rejects them the same way plan rejects -json.
 var scopedFlags = map[string]map[string]bool{
 	"prune":           {"plan": true, "apply": true},
 	"prune-mailboxes": {"plan": true, "apply": true},
 	"replace-dns":     {"plan": true, "apply": true},
 	"yes":             {"plan": true, "apply": true},
 	"json":            {"plan": true},
+	"addr":            {"ui": true},
+	"no-browser":      {"ui": true},
 }
 
 // rejectScopedFlags errors on a flag from scopedFlags the operator actually
