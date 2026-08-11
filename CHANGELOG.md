@@ -8,11 +8,7 @@ under **Breaking**.
 
 ## Unreleased
 
-### Added
-
-- Prebuilt binaries for Linux, macOS and Windows on `amd64` and `arm64`,
-  attached to each release with SHA-256 checksums. Previously only `go install`
-  was offered.
+Nothing yet.
 
 ## v0.1.0 — 2026-08-11
 
@@ -40,6 +36,9 @@ First release.
 - `mailctl version` resolves its own version from the module build info, so a
   binary installed from the module proxy reports its release and a local build
   reports its revision.
+- Prebuilt binaries for Linux, macOS and Windows on `amd64` and `arm64`, with
+  SHA-256 checksums. Attached shortly after the tag was cut, by a release
+  workflow added at the same time.
 
 ### Security
 
