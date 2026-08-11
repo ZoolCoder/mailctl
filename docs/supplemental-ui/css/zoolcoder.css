@@ -873,7 +873,15 @@ footer.footer {
 
 @media screen and (max-width: 800px) {
   .zc-footer-top { grid-template-columns: 1fr; gap: 2.25rem; }
-  .zc-footer-cols { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  .zc-footer-cols { gap: 1.5rem; }
+}
+
+/* There are three columns, so a two-column grid orphans one of them beside
+   empty space at every width it applies to. Three columns still fit down to
+   520px — they are only 131px wide at 900px and hold their longest link
+   without wrapping — so the layout goes straight from three to one. */
+@media screen and (max-width: 520px) {
+  .zc-footer-cols { grid-template-columns: 1fr; gap: 1.75rem; }
 }
 
 /* ------------------------------------------------------ landing page extras */
