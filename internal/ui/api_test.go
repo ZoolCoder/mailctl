@@ -152,12 +152,20 @@ func TestStaticAssetsServeTheShellOnceAuthenticated(t *testing.T) {
 	}
 }
 
+// Each New* rejection test below asserts the error names its own field, not
+// merely that New returned some error. A copy-paste bug that returned the
+// same generic message from every branch, or a reordering that let one check
+// shadow another, would still pass a bare err == nil assertion.
+
 func TestNewRejectsEmptyToken(t *testing.T) {
 	_, err := New(Deps{
 		Token: "", Host: "127.0.0.1:1234", Planner: &fakePlanner{}, Audit: fakeAudit,
 	})
 	if err == nil {
 		t.Fatal("New with an empty Token returned nil error, want a validation error")
+	}
+	if !strings.Contains(err.Error(), "Token") {
+		t.Errorf("error = %q, want it to name Token", err)
 	}
 }
 
@@ -168,6 +176,9 @@ func TestNewRejectsEmptyHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("New with an empty Host returned nil error, want a validation error")
 	}
+	if !strings.Contains(err.Error(), "Host") {
+		t.Errorf("error = %q, want it to name Host", err)
+	}
 }
 
 func TestNewRejectsNilPlanner(t *testing.T) {
@@ -177,6 +188,9 @@ func TestNewRejectsNilPlanner(t *testing.T) {
 	if err == nil {
 		t.Fatal("New with a nil Planner returned nil error, want a validation error")
 	}
+	if !strings.Contains(err.Error(), "Planner") {
+		t.Errorf("error = %q, want it to name Planner", err)
+	}
 }
 
 func TestNewRejectsNilAuditor(t *testing.T) {
@@ -185,5 +199,63 @@ func TestNewRejectsNilAuditor(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("New with a nil Audit returned nil error, want a validation error")
+	}
+	if !strings.Contains(err.Error(), "Audit") {
+		t.Errorf("error = %q, want it to name Audit", err)
+	}
+}
+
+// handlePlan and handleAudit are 501 stubs pending Task 8's real bodies, but
+// the routes themselves — POST /api/plan and POST /api/audit — are this
+// task's wiring, and Task 8 needs a red test if it moves either handler off
+// its method or out from behind the auth wrapper. Each stub is pinned in
+// both directions: authenticated reaches the stub (501), unauthenticated
+// never does (403).
+
+func TestPlanStubIsReachableOnceAuthenticated(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, authed(http.MethodPost, "/api/plan"))
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Errorf("status = %d for authenticated POST /api/plan, want 501", rec.Code)
+	}
+}
+
+func TestPlanStubRequiresAuthentication(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:1234/api/plan", nil)
+	req.Host = "127.0.0.1:1234"
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d for unauthenticated POST /api/plan, want 403", rec.Code)
+	}
+}
+
+func TestAuditStubIsReachableOnceAuthenticated(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, authed(http.MethodPost, "/api/audit"))
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Errorf("status = %d for authenticated POST /api/audit, want 501", rec.Code)
+	}
+}
+
+func TestAuditStubRequiresAuthentication(t *testing.T) {
+	server := testServer(t, &fakePlanner{})
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:1234/api/audit", nil)
+	req.Host = "127.0.0.1:1234"
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d for unauthenticated POST /api/audit, want 403", rec.Code)
 	}
 }
