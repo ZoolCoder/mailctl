@@ -120,3 +120,44 @@ func TestRecordsMapsPriorityAndID(t *testing.T) {
 		t.Errorf("record = %+v, want the mapped fields", got[0])
 	}
 }
+
+// Delete is the one call here that destroys something, and it had no test. The
+// record id is what makes it specific: a wrong path deletes another record, and
+// a wrong method silently does nothing while reporting success.
+func TestDeleteTargetsTheRecordIDWithDELETE(t *testing.T) {
+	var gotMethod, gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		fmt.Fprint(w, `{"success":true,"errors":[],"result":{"id":"r1"}}`)
+	}))
+	defer server.Close()
+
+	if err := New(cfapi.New(server.URL, "tok"), 1).Delete(context.Background(), "z1", "r1"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	if gotMethod != http.MethodDelete {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if gotPath != "/zones/z1/dns_records/r1" {
+		t.Errorf("path = %q, want the zone and record id", gotPath)
+	}
+}
+
+func TestDeleteSurfacesCloudflaresRefusal(t *testing.T) {
+	// A failed delete must be an error: reporting success would leave the plan
+	// believing a record is gone when it is still published.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"success":false,"errors":[{"code":10000,"message":"Authentication error"}]}`)
+	}))
+	defer server.Close()
+
+	err := New(cfapi.New(server.URL, "tok"), 1).Delete(context.Background(), "z1", "r1")
+	if err == nil {
+		t.Fatal("expected an error when Cloudflare refuses the delete")
+	}
+	if !strings.Contains(err.Error(), "r1") {
+		t.Errorf("error should name the record it failed to delete; got %q", err)
+	}
+}
