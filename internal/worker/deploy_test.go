@@ -109,10 +109,10 @@ func TestScriptMatchesHandlesMultipartResponse(t *testing.T) {
 			"Content-Type":        {"application/javascript+module"},
 		})
 		fmt.Fprint(modPart, moduleBody)
-		writer.Close()
+		_ = writer.Close()
 
 		w.Header().Set("Content-Type", writer.FormDataContentType())
-		w.Write(buf.Bytes())
+		_, _ = w.Write(buf.Bytes())
 	}
 
 	matchServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

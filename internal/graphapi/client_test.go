@@ -30,7 +30,7 @@ func tokenServer(t *testing.T, hits *atomic.Int64, expiresIn int) *httptest.Serv
 			t.Errorf("scope = %q, want a /.default suffix", got)
 		}
 		n := hits.Add(1)
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "tok-" + string(rune('0'+n)),
 			"expires_in":   expiresIn,
 		})
@@ -79,7 +79,7 @@ func TestTokenIsFetchedOnceAndReused(t *testing.T) {
 	var seen []string
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = append(seen, r.Header.Get("Authorization"))
-		w.Write([]byte(`{"id":"example.com"}`))
+		_, _ = w.Write([]byte(`{"id":"example.com"}`))
 	}))
 	defer graph.Close()
 
@@ -108,10 +108,10 @@ func TestUnauthorizedRefreshesTokenExactlyOnce(t *testing.T) {
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requests.Add(1) == 1 {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":{"code":"InvalidAuthenticationToken","message":"expired"}}`))
+			_, _ = w.Write([]byte(`{"error":{"code":"InvalidAuthenticationToken","message":"expired"}}`))
 			return
 		}
-		w.Write([]byte(`{"id":"example.com"}`))
+		_, _ = w.Write([]byte(`{"id":"example.com"}`))
 	}))
 	defer graph.Close()
 
@@ -136,7 +136,7 @@ func TestPersistentUnauthorizedFailsWithoutLooping(t *testing.T) {
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":{"code":"InvalidAuthenticationToken","message":"still expired"}}`))
+		_, _ = w.Write([]byte(`{"error":{"code":"InvalidAuthenticationToken","message":"still expired"}}`))
 	}))
 	defer graph.Close()
 
@@ -157,7 +157,7 @@ func TestErrorEnvelopeReachesCaller(t *testing.T) {
 
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`{"error":{"code":"Authorization_RequestDenied","message":"Insufficient privileges"}}`))
+		_, _ = w.Write([]byte(`{"error":{"code":"Authorization_RequestDenied","message":"Insufficient privileges"}}`))
 	}))
 	defer graph.Close()
 
@@ -183,7 +183,7 @@ func TestTokenEndpointFailureNeverEchoesTheBody(t *testing.T) {
 	login := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		// A real token endpoint echoes the request, secret included.
-		w.Write([]byte(`{"error":"invalid_client","error_description":"secret-1 is wrong"}`))
+		_, _ = w.Write([]byte(`{"error":"invalid_client","error_description":"secret-1 is wrong"}`))
 	}))
 	defer login.Close()
 
@@ -222,7 +222,7 @@ func TestRequestBodyIsSentAsJSON(t *testing.T) {
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		gotBody, gotType = strings.TrimSpace(string(b)), r.Header.Get("Content-Type")
-		w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(`{}`))
 	}))
 	defer graph.Close()
 
@@ -244,7 +244,7 @@ func TestResultIsDecoded(t *testing.T) {
 	defer login.Close()
 
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"example.com","isVerified":true}`))
+		_, _ = w.Write([]byte(`{"id":"example.com","isVerified":true}`))
 	}))
 	defer graph.Close()
 
@@ -271,10 +271,10 @@ func TestRetryAfterIsHonouredThenSucceeds(t *testing.T) {
 		if attempts.Add(1) <= 2 {
 			w.Header().Set("Retry-After", "0")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":{"code":"TooManyRequests","message":"throttled"}}`))
+			_, _ = w.Write([]byte(`{"error":{"code":"TooManyRequests","message":"throttled"}}`))
 			return
 		}
-		w.Write([]byte(`{"id":"example.com"}`))
+		_, _ = w.Write([]byte(`{"id":"example.com"}`))
 	}))
 	defer graph.Close()
 
@@ -297,7 +297,7 @@ func TestRetriesAreBounded(t *testing.T) {
 		attempts.Add(1)
 		w.Header().Set("Retry-After", "0")
 		w.WriteHeader(http.StatusTooManyRequests)
-		w.Write([]byte(`{"error":{"code":"TooManyRequests","message":"throttled"}}`))
+		_, _ = w.Write([]byte(`{"error":{"code":"TooManyRequests","message":"throttled"}}`))
 	}))
 	defer graph.Close()
 

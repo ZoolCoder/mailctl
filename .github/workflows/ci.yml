@@ -37,6 +37,17 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # Runs as an action rather than a `tool` directive in go.mod: a tool
+      # directive would add golangci-lint to the module's direct requirements
+      # and break the one-dependency check below, which is the whole point of
+      # that check.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          # Pinned to the version the config was written and verified against,
+          # so a new release cannot turn a green branch red on its own.
+          version: v2.12.2
+
       - name: build
         run: go build ./...
 

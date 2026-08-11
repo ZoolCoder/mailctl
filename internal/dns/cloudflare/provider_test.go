@@ -50,7 +50,9 @@ func TestCreateSendsTTLAndPriority(t *testing.T) {
 	var payload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &payload)
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
 		fmt.Fprint(w, `{"success":true,"errors":[],"result":{"id":"r1"}}`)
 	}))
 	defer server.Close()
@@ -78,7 +80,9 @@ func TestCreateSendsProxiedWhenSet(t *testing.T) {
 	var payload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &payload)
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
 		fmt.Fprint(w, `{"success":true,"errors":[],"result":{"id":"r1"}}`)
 	}))
 	defer server.Close()

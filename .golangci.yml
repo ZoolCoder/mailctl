@@ -1,0 +1,103 @@
+version: "2"
+
+# gofmt, go vet, build and the test suite already run in ci.yml. This adds the
+# checks those four do not make, plus the import boundaries that keep the
+# architecture honest.
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose # an unclosed response body leaks a connection
+    - errorlint # %v where %w is meant loses the error chain
+    - misspell
+    - unconvert
+    - depguard
+
+  settings:
+    errcheck:
+      # Writing to stdout or stderr has nowhere to report its own failure, and
+      # fmt.Fprintf to a strings.Builder cannot fail at all. Every other
+      # ignored error is written as an explicit `_ =` so the intent is visible
+      # at the call site.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        # `defer resp.Body.Close()` is the canonical idiom for draining a
+        # response, and the error it returns is not actionable: the request has
+        # already been read. Wrapping every one in a closure to discard the
+        # error explicitly would add noise to every HTTP call in the tree.
+        - (io.ReadCloser).Close
+
+    staticcheck:
+      checks:
+        - all
+        # The QF ("quickfix") checks are refactoring opinions rather than
+        # correctness findings, and the three they raise here each make the code
+        # harder to read: De Morgan's law applied to "all four checks passed",
+        # a tagged switch over two cases, and dropping an embedded type name
+        # that says which of two shapes a value has.
+        - -QF1001
+        - -QF1003
+        - -QF1008
+
+    depguard:
+      rules:
+        # `plan` builds and prints the action list. The tool's central promise
+        # is that planning performs no I/O once it has begun, so the layer that
+        # represents a plan must not be able to reach the network or the
+        # process table. This holds today; the rule is here to keep it holding.
+        plan-performs-no-io:
+          files:
+            - '**/internal/plan/*.go'
+          deny:
+            - pkg: net/http
+              desc: plan must not perform I/O; providers read live state and hand it in
+            - pkg: os/exec
+              desc: plan must not run processes
+
+        # Deliverability computes record contents (SPF, DKIM, DMARC, MTA-STS)
+        # from config. It never talks to a provider.
+        deliver-is-pure:
+          files:
+            - '**/internal/deliver/*.go'
+          deny:
+            - pkg: net/http
+              desc: deliver computes record contents only; the DNS layer publishes them
+
+        # Config parses and validates one file. It reads that file and the
+        # environment, and nothing else.
+        config-only-reads-config:
+          files:
+            - '**/internal/config/*.go'
+          deny:
+            - pkg: net/http
+              desc: validation must not depend on anything reachable over a network
+
+        # Providers are peers behind one interface. One reaching into another
+        # would couple two vendors' quirks together and break the registry's
+        # promise that a provider can be added or dropped on its own.
+        providers-do-not-import-each-other:
+          files:
+            - '**/internal/mail/*/*.go'
+          deny:
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/ms365
+              desc: providers must not import each other; share through internal/mail
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/purelymail
+              desc: providers must not import each other; share through internal/mail
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/cfrouting
+              desc: providers must not import each other; share through internal/mail
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/cfsending
+              desc: providers must not import each other; share through internal/mail
+
+  exclusions:
+    rules:
+      # These messages open with a vendor's name — "Cloudflare GET …",
+      # "Microsoft Graph …" — which is correct capitalisation for a proper noun.
+      # ST1005 cannot tell a proper noun from a sentence, and its other two
+      # checks (trailing punctuation, embedded newlines) stay active everywhere,
+      # including in these files.
+      - linters:
+          - staticcheck
+        text: 'ST1005: error strings should not be capitalized'
+        path: (internal/cfapi/|internal/dns/cloudflare/|internal/graphapi/|internal/mail/ms365/|internal/mail/purelymail/)

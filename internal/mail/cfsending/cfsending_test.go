@@ -31,7 +31,7 @@ func serve(t *testing.T, routes map[string]string) (*Client, *[]string) {
 	t.Helper()
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.Discard, r.Body)
+		_, _ = io.Copy(io.Discard, r.Body)
 		paths = append(paths, r.Method+" "+r.URL.Path)
 		body, ok := routes[r.URL.Path]
 		if !ok {
@@ -241,7 +241,7 @@ func TestPlanAllowsMailboxesWhenPairedWithPurelymail(t *testing.T) {
 func TestPlanActionEnablesViaAPI(t *testing.T) {
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.Discard, r.Body)
+		_, _ = io.Copy(io.Discard, r.Body)
 		paths = append(paths, r.Method+" "+r.URL.Path)
 		if r.Method == "POST" && r.URL.Path == "/zones/z1/email/sending/subdomains" {
 			fmt.Fprint(w, `{"success":true,"errors":[],"result":{"id":"s2","name":"a.com","enabled":true}}`)

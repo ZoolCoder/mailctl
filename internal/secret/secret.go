@@ -156,12 +156,19 @@ func WriteFile(path string, generated map[string]string) error {
 		}
 		return fmt.Errorf("write secrets file %s: %w", path, err)
 	}
-	defer file.Close()
+	// Closes the file on the write-error path below. The success path closes it
+	// explicitly and reports that error, because a credential file whose final
+	// flush failed must not be reported as written; this deferred close then
+	// runs as a harmless no-op.
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.WriteString(body.String()); err != nil {
 		return fmt.Errorf("write secrets file %s: %w", path, err)
 	}
-	return file.Close()
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("write secrets file %s: %w", path, err)
+	}
+	return nil
 }
 
 func sortedKeys(m map[string]string) []string {

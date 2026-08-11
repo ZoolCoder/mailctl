@@ -25,7 +25,11 @@ func serve(t *testing.T, rec *recorder, response string) *Client {
 		rec.path = r.URL.Path
 		rec.headers = r.Header.Clone()
 		rec.body = map[string]any{}
-		json.Unmarshal(raw, &rec.body)
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &rec.body); err != nil {
+				t.Errorf("decode request body: %v", err)
+			}
+		}
 		fmt.Fprint(w, response)
 	}))
 	t.Cleanup(server.Close)

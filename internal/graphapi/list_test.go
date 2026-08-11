@@ -29,7 +29,7 @@ func TestListFollowsNextLink(t *testing.T) {
 			fmt.Fprintf(w, `{"value":[{"skuPartNumber":"B"}],"@odata.nextLink":%q}`,
 				graph.URL+"/subscribedSkus?page=3")
 		default:
-			w.Write([]byte(`{"value":[{"skuPartNumber":"C"}]}`))
+			_, _ = w.Write([]byte(`{"value":[{"skuPartNumber":"C"}]}`))
 		}
 	}))
 	defer graph.Close()
@@ -73,7 +73,7 @@ func TestListRejectsANextLinkToAnotherHost(t *testing.T) {
 	defer login.Close()
 
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"value":[],"@odata.nextLink":"https://attacker.example/steal"}`))
+		_, _ = w.Write([]byte(`{"value":[],"@odata.nextLink":"https://attacker.example/steal"}`))
 	}))
 	defer graph.Close()
 

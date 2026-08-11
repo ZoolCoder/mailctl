@@ -25,7 +25,13 @@ func serve(t *testing.T, handler func(*capture) string) (*Client, *capture) {
 		raw, _ := io.ReadAll(r.Body)
 		got.method, got.path = r.Method, r.URL.Path
 		got.body = map[string]any{}
-		json.Unmarshal(raw, &got.body)
+		// GET and DELETE arrive with no body at all, which is not a decode
+		// failure. A non-empty body that will not parse is one.
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &got.body); err != nil {
+				t.Errorf("decode request body: %v", err)
+			}
+		}
 		fmt.Fprint(w, handler(got))
 	}))
 	t.Cleanup(server.Close)

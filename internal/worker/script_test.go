@@ -89,7 +89,19 @@ func TestPolicyScriptEscapesBackticksAndInterpolation(t *testing.T) {
 func TestPolicyScriptIsDeterministic(t *testing.T) {
 	policy := "version: STSv1\nmode: testing\nmx: mx.a.com\nmax_age: 86400\n"
 
-	if PolicyScript(policy) != PolicyScript(policy) {
-		t.Error("the same policy must produce byte-identical source, or every run redeploys")
+	// Repeated rather than compared against a single second call: the failure
+	// this guards against is map iteration order leaking into the source, which
+	// one extra call can miss by luck. An empty result would also compare equal
+	// to itself, so the content is asserted too.
+	first := PolicyScript(policy)
+	if !strings.Contains(first, "mx.a.com") {
+		t.Fatalf("the policy is missing from the generated source; got:\n%s", first)
+	}
+	for i := range 32 {
+		if got := PolicyScript(policy); got != first {
+			t.Fatalf("call %d differed from the first; the same policy must produce "+
+				"byte-identical source, or every run redeploys:\nfirst:\n%s\ngot:\n%s",
+				i+2, first, got)
+		}
 	}
 }

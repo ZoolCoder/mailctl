@@ -186,10 +186,15 @@ func commit(path, domainName string, rendered []byte, mode os.FileMode) error {
 		return fmt.Errorf("create temp config near %s: %w", path, err)
 	}
 	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath) // no-op once the rename below succeeds
+	// Best-effort cleanup, and a no-op once the rename below succeeds. A failure
+	// to remove leaves a stray temp file beside the config, which is worth
+	// neither failing the edit nor masking the error that got us here.
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if _, err := tmp.Write(rendered); err != nil {
-		tmp.Close()
+		// The write error is the one worth reporting; a close failure on a file
+		// that is about to be removed adds nothing.
+		_ = tmp.Close()
 		return fmt.Errorf("write temp config %s: %w", tmpPath, err)
 	}
 	if err := tmp.Close(); err != nil {

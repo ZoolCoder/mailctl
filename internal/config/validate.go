@@ -300,7 +300,7 @@ func checkReportingAddr(domain, field, value string) error {
 	for _, element := range strings.Split(value, ",") {
 		if !strings.HasPrefix(element, "mailto:") && !strings.HasPrefix(element, "https:") {
 			return fmt.Errorf(
-				"domain %s: %s %q element %q must begin with mailto: or https:",
+				`domain %s: %s %q element %q must begin with "mailto:" or "https:"`,
 				domain, field, value, element)
 		}
 	}

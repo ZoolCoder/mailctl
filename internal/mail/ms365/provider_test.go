@@ -23,7 +23,7 @@ func fakeGraph(t *testing.T, handlers map[string]func(w http.ResponseWriter, r *
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/oauth2/v2.0/token") {
-			json.NewEncoder(w).Encode(map[string]any{"access_token": "tok", "expires_in": 3600})
+			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "tok", "expires_in": 3600})
 			return
 		}
 		if handler, ok := handlers[r.Method+" "+r.URL.Path]; ok {
@@ -31,7 +31,7 @@ func fakeGraph(t *testing.T, handlers map[string]func(w http.ResponseWriter, r *
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":{"code":"Request_ResourceNotFound","message":"not found"}}`))
+		_, _ = w.Write([]byte(`{"error":{"code":"Request_ResourceNotFound","message":"not found"}}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -62,7 +62,7 @@ func domainConfig(boxes ...config.Mailbox) config.Domain {
 }
 
 func json200(payload string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(payload)) }
+	return func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(payload)) }
 }
 
 func TestActualReportsAnAbsentDomain(t *testing.T) {
@@ -200,7 +200,7 @@ func TestPlanMailboxHasThreeStates(t *testing.T) {
 	p := fakeGraph(t, map[string]func(http.ResponseWriter, *http.Request){
 		"POST /users": func(w http.ResponseWriter, r *http.Request) {
 			calledCreateUser = true
-			json.NewEncoder(w).Encode(map[string]any{"id": "new-user-id"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "new-user-id"})
 		},
 		"POST /users/u1/assignLicense": func(w http.ResponseWriter, r *http.Request) {
 			assignLicenseHits = append(assignLicenseHits, "u1")
@@ -506,11 +506,11 @@ func TestDesiredDNSReadsGraphOnceTheDomainExists(t *testing.T) {
 func TestPlanCreateMailboxMarksCredentialAppliedBeforeLicenseFails(t *testing.T) {
 	p := fakeGraph(t, map[string]func(http.ResponseWriter, *http.Request){
 		"POST /users": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(map[string]any{"id": "user-1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "user-1"})
 		},
 		"POST /users/user-1/assignLicense": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":{"code":"ServiceError","message":"licence assignment failed"}}`))
+			_, _ = w.Write([]byte(`{"error":{"code":"ServiceError","message":"licence assignment failed"}}`))
 		},
 	})
 	p.skus["example.com"] = map[string]licenceInfo{"BUSINESS_BASIC": {SkuID: "sku-basic", Available: 5}}

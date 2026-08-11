@@ -201,7 +201,7 @@ func TestStdoutStaysClean(t *testing.T) {
 
 	// Restore stdout and close the write end
 	os.Stdout = oldStdout
-	w.Close()
+	_ = w.Close()
 
 	// Read whatever was written to stdout
 	out, _ := io.ReadAll(r)

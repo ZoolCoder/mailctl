@@ -24,6 +24,18 @@ $ go vet ./...      # must be silent
 $ go test ./...     # must pass every package
 ```
 
+And the linter, which CI also runs:
+
+```console
+$ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+```
+
+Run it that way rather than adding it to `go.mod` as a tool: a tool directive
+would make golangci-lint a direct requirement of the module and break the
+one-dependency rule below. `.golangci.yml` explains every check it disables and
+why, including the import boundaries that keep `plan` free of I/O and the
+providers independent of each other.
+
 ## Conventions that are requirements
 
 These are not style preferences. Reviews will hold you to them.

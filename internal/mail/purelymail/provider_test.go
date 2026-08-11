@@ -35,7 +35,11 @@ func (r *routes) client(t *testing.T) *Client {
 		endpoint := strings.TrimPrefix(req.URL.Path, "/api/v0/")
 		raw, _ := io.ReadAll(req.Body)
 		body := map[string]any{}
-		json.Unmarshal(raw, &body)
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &body); err != nil {
+				t.Errorf("decode request body: %v", err)
+			}
+		}
 
 		r.calls = append(r.calls, endpoint)
 		r.bodies[endpoint] = append(r.bodies[endpoint], body)

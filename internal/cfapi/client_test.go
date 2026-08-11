@@ -3,6 +3,7 @@ package cfapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -73,7 +74,7 @@ func TestListFollowsPagination(t *testing.T) {
 			"result":      []zone{{ID: "z" + page, Name: page + ".com"}},
 			"result_info": map[string]int{"page": len(pages), "total_pages": 3},
 		}
-		json.NewEncoder(w).Encode(body)
+		_ = json.NewEncoder(w).Encode(body)
 	}))
 	defer server.Close()
 
@@ -179,7 +180,7 @@ func TestMultipartSendsPartsCorrectly(t *testing.T) {
 	found := make(map[string]struct{})
 	for {
 		part, err := reader.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
