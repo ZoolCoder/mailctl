@@ -1,0 +1,113 @@
+/*
+ * Design tokens shared with the documentation site (docs/supplemental-ui/css/
+ * zoolcoder.css). Only the token layer is carried over here — colours, fonts,
+ * radii, easing — not Antora's page-structure rules, which target markup this
+ * viewer doesn't have.
+ *
+ * No web fonts: the docs site loads DM Sans/Space Grotesk from Google Fonts.
+ * This tool must run with no network access, so only the font STACKS are
+ * carried — an operator with those faces installed gets them, everyone else
+ * falls back to the system sans/serif already listed here.
+ *
+ * Dark is the default canvas (`:root`), matching the docs site. Unlike the
+ * docs site — which always has JS set `data-theme` before first paint — this
+ * viewer has no such script, so the `prefers-color-scheme` media query below
+ * supplies the system-preference default, and an explicit `data-theme`
+ * attribute (higher specificity than the bare `:root` in the media query)
+ * still wins over it if one is ever set.
+ */
+
+:root,
+:root[data-theme="dark"] {
+  --zc-bg: #07080b;
+  --zc-surface: #0a0c11;
+  --zc-surface-2: #0d1016;
+  --zc-surface-3: #10141c;
+  --zc-border: rgba(255, 255, 255, 0.08);
+  --zc-border-strong: rgba(255, 255, 255, 0.14);
+
+  --zc-text: #f4f7fa;
+  --zc-text-strong: #ffffff;
+  --zc-text-muted: #aeb8c6;
+  --zc-text-faint: #8a94a6;
+
+  --zc-accent: #2dd4bf;
+  --zc-accent-strong: #2dd4bf;
+  --zc-accent-contrast: #07080b;
+  --zc-amber: #fbbf24;
+  /* Not one of the docs site's named custom properties — it hardcodes this
+     pair directly on `.doc a.unresolved` for a broken cross-reference. Same
+     values, promoted to a token here because DELETE actions and failing audit
+     checks need the same "reads as broken on both canvases" red. */
+  --zc-red: #f87171;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --zc-bg: #fcfdfe;
+  --zc-surface: #ffffff;
+  --zc-surface-2: #f4f7fa;
+  --zc-surface-3: #eef2f7;
+  --zc-border: #e4eaf1;
+  --zc-border-strong: #ccd6e2;
+
+  --zc-text: #16202f;
+  --zc-text-strong: #070a10;
+  --zc-text-muted: #55637a;
+  /* 4.67:1 on the light canvas. The lighter #7c8899 measures 3.53:1, which
+     fails AA — measured, not eyeballed. Do not round this. */
+  --zc-text-faint: #64748b;
+
+  /* The brand teal fails contrast on white, so light mode uses a darkened
+     teal for text; the bright one stays fill-only, exposed as
+     --zc-accent-strong. #0a6b60 clears 4.5:1 even against the sidebar's
+     tinted background where the more obvious #0d7d70 measured 3.75:1. */
+  --zc-accent: #0a6b60;
+  --zc-accent-strong: #0f766e;
+  --zc-accent-contrast: #ffffff;
+  --zc-amber: #a2620a;
+  --zc-red: #b91c1c;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --zc-bg: #fcfdfe;
+    --zc-surface: #ffffff;
+    --zc-surface-2: #f4f7fa;
+    --zc-surface-3: #eef2f7;
+    --zc-border: #e4eaf1;
+    --zc-border-strong: #ccd6e2;
+
+    --zc-text: #16202f;
+    --zc-text-strong: #070a10;
+    --zc-text-muted: #55637a;
+    --zc-text-faint: #64748b;
+
+    --zc-accent: #0a6b60;
+    --zc-accent-strong: #0f766e;
+    --zc-accent-contrast: #ffffff;
+    --zc-amber: #a2620a;
+    --zc-red: #b91c1c;
+
+    color-scheme: light;
+  }
+}
+
+:root {
+  /* Shape and motion, matching the studio site: 4px and 10px, not the
+     dashboard's 18px, and the site's own easing and duration. */
+  --zc-radius-sm: 4px;
+  --zc-radius: 10px;
+  --zc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --zc-dur: 240ms;
+
+  --zc-font-ui: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --zc-font-display: "Space Grotesk", var(--zc-font-ui);
+  --zc-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --zc-fs-body: 17px;
+  --zc-fs-label: 12.5px;
+}

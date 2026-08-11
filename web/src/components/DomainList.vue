@@ -28,3 +28,69 @@ function toggle(domain: string) {
     </li>
   </ul>
 </template>
+
+<style scoped>
+.domain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.domain-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.domain-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: var(--zc-surface);
+  border: 1px solid var(--zc-border);
+  border-radius: var(--zc-radius);
+  padding: 0.7rem 0.9rem;
+}
+
+/* The row used to render "example.com— purelymail": adjacent inline spans
+   with no whitespace text node between them in the compiled template. The
+   flex gap above already separates every span; this stops the providers
+   span from crowding the one before it when the gap alone reads too tight. */
+.domain-toggle > .providers {
+  margin-left: 0.15rem;
+}
+
+.status-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--zc-text-faint);
+}
+
+.status-dot.converged {
+  background: var(--zc-accent);
+}
+
+.status-dot.pending {
+  background: var(--zc-amber);
+}
+
+.name {
+  color: var(--zc-text-strong);
+  font-weight: 600;
+}
+
+.zone {
+  color: var(--zc-text-faint);
+  font-size: 0.9em;
+}
+
+.providers {
+  color: var(--zc-text-muted);
+}
+</style>
