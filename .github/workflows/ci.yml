@@ -81,3 +81,33 @@ jobs:
           go mod tidy
           diff -u go.mod.bak go.mod || { echo "::error::go.mod is not tidy"; exit 1; }
           diff -u go.sum.bak go.sum || { echo "::error::go.sum is not tidy"; exit 1; }
+
+      # The frontend lives in web/ with its own lockfile; the root package.json
+      # is the Antora docs toolchain and is unrelated to this build. Pinned to
+      # the LTS major: rebuilding the committed bundle under both Node 22 and
+      # Node 25 produced byte-identical output, so 22 is safe and is the better
+      # default for CI.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: install the frontend toolchain
+        working-directory: web
+        run: npm ci
+
+      - name: frontend tests
+        working-directory: web
+        run: npm test
+
+      # The committed bundle exists so `go install` works without npm. If it can
+      # drift from source, it will, and the drift would ship.
+      - name: verify the committed ui bundle is current
+        run: |
+          npm run ui:build
+          if ! git diff --quiet -- internal/ui/dist; then
+            echo "::error::internal/ui/dist is stale; run 'npm run ui:build' and commit the result"
+            git diff --stat -- internal/ui/dist
+            exit 1
+          fi

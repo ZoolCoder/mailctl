@@ -90,6 +90,22 @@ linters:
             - pkg: github.com/zoolcoder/mailctl/internal/mail/cfsending
               desc: providers must not import each other; share through internal/mail
 
+        # The UI reaches providers only through the engine. A handler that
+        # talked to a provider directly would duplicate the engine's ordering
+        # and safety decisions, and the two would drift apart.
+        ui-goes-through-the-engine:
+          files:
+            - '**/internal/ui/*.go'
+          deny:
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/ms365
+              desc: use the engine, not a provider
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/purelymail
+              desc: use the engine, not a provider
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/cfrouting
+              desc: use the engine, not a provider
+            - pkg: github.com/zoolcoder/mailctl/internal/mail/cfsending
+              desc: use the engine, not a provider
+
   exclusions:
     rules:
       # These messages open with a vendor's name — "Cloudflare GET …",
