@@ -71,11 +71,18 @@
   --zc-text: #16202f;
   --zc-text-strong: #070a10;
   --zc-text-muted: #55637a;
-  --zc-text-faint: #7c8899;
+  /* 4.67:1 on the light canvas. The obvious lighter grey (#7c8899) measures
+     3.53:1, which fails AA for the 12.5px labels and the contents list that use
+     this token — measured, not eyeballed. */
+  --zc-text-faint: #64748b;
 
   /* The brand teal fails contrast on white, so light mode uses a darkened teal
-     for text and keeps the bright one for fills only. */
-  --zc-accent: #0d7d70;
+     for text and keeps the bright one for fills only. Every use of --zc-accent
+     is a text colour; fills use --zc-accent-strong. The binding case is not
+     white but the current-page pill in the sidebar, whose 12% tint lifts the
+     background to #dedfe0: #0d7d70 measured 3.75:1 there, failing AA, so this
+     is darkened to clear 4.5:1 on the pill as well as on the canvas. */
+  --zc-accent: #0a6b60;
   --zc-accent-strong: #0f766e;
   --zc-accent-contrast: #ffffff;
   --zc-accent-glow: rgba(13, 148, 136, 0.2);
@@ -145,6 +152,18 @@ body::before {
 
 a { color: var(--zc-accent); text-underline-offset: 2px; }
 a:hover { color: var(--zc-accent-strong); }
+
+/* Upstream sets `.doc a { color: #1565c0 }`, which a bare `a` selector cannot
+   reach. Left alone, every in-content link renders in Antora's blue: off-brand,
+   and only 3.49:1 against the dark canvas where WCAG AA wants 4.5:1 for body
+   text. Measured, not guessed. */
+.doc a { color: var(--zc-accent); }
+.doc a:hover { color: var(--zc-accent-strong); }
+
+/* An unresolved xref should still read as broken, but in a red that works on
+   both canvases. */
+.doc a.unresolved { color: #f87171; }
+:root[data-theme="light"] .doc a.unresolved { color: #b91c1c; }
 
 ::selection { background: var(--zc-accent-glow); color: var(--zc-text-strong); }
 
@@ -228,6 +247,12 @@ a:hover { color: var(--zc-accent-strong); }
 
 .navbar-brand .zc-product-link::before { content: "/"; margin-right: 0.45rem; opacity: 0.5; }
 .navbar-brand .zc-product-link:hover { color: var(--zc-accent); background: transparent; }
+
+/* Restates the stock `.navbar-burger span{background-color:#fff}`. The stock UI
+   assumes a dark header, so on the light header the three bars are white on
+   white: the phone-width nav menu, and the theme toggle inside it, are left
+   with no visible control at all. */
+.navbar-burger span { background-color: var(--zc-text); }
 
 /* Theme toggle: one button, the irrelevant icon hidden per theme. */
 .zc-theme-toggle {
@@ -341,6 +366,11 @@ a:hover { color: var(--zc-accent-strong); }
 
 .toolbar a { color: var(--zc-text-faint); }
 .toolbar a:hover { color: var(--zc-accent); }
+
+/* Restates the stock rule `.toolbar .edit-this-page a{color:#8e8e8e}`, which
+   wins on specificity (0,2,1) over `.toolbar a` above. That literal grey
+   measures 3.21:1 on the light canvas and fails AA; the token is 4.67:1. */
+.toolbar .edit-this-page a { color: var(--zc-text-faint); }
 
 /* Breadcrumbs restate the page title one line below it. Keep the home icon for
    orientation and drop the redundant trail. */
@@ -634,6 +664,19 @@ a:hover { color: var(--zc-accent-strong); }
 .doc table.tableblock tbody tr:last-child td { border-bottom: 0; }
 .doc table.tableblock tbody tr:nth-child(even) { background: transparent; }
 .doc table.tableblock tbody tr:hover { background: var(--zc-surface); }
+
+/* Restates the stock rule that colours every block title and table caption
+   #5d5d5d — a literal that measures 3.04:1 on the dark canvas and fails AA.
+   The whole upstream selector list is repeated so titles are themed too, not
+   just the captions. Same specificity, so this wins by coming later. */
+.doc .admonitionblock .title,
+.doc .exampleblock .title,
+.doc .imageblock .title,
+.doc .listingblock .title,
+.doc .literalblock .title,
+.doc .openblock .title,
+.doc .videoblock .title,
+.doc table.tableblock caption { color: var(--zc-text-faint); }
 
 /* -------------------------------------------------------------- admonitions */
 
@@ -932,10 +975,21 @@ footer.footer {
 
 /* --------------------------------------------------------------- responsive */
 
+/* The brand must never break: at 390px the wordmark dropped below the logo and
+   the product tag split mid-word into "mailc / tl". */
+.zc-brand,
+.zc-logo-text,
+.navbar-brand .zc-product-link { white-space: nowrap; }
+
 @media screen and (max-width: 1023px) {
   .doc { padding: 2rem 1.25rem 3rem; max-width: none; }
   .doc h1.page { font-size: clamp(1.9rem, 1.4rem + 3vw, 2.4rem); }
-  .zc-wordmark .zc-product { display: none; }
+}
+
+/* Phone widths: the search box and the brand cannot both fit beside the nav, so
+   the product tag goes — the page title names the product on every page. */
+@media screen and (max-width: 600px) {
+  .navbar-brand .zc-product-link { display: none; }
 }
 
 @media print {
