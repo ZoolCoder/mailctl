@@ -475,12 +475,15 @@ that pattern exactly. The test asserts two things: valid JSON on stdout, and tha
 human framing (the "N actions" summary and the "Run `mailctl apply`" hint) is
 absent, because a consumer piping into `jq` must not receive prose.
 
+Write the config fixture with the same helper the existing `plan` tests in
+`cmd/mailctl/main_test.go` use. If they build it inline, do the same: write a
+minimal one-domain config into `t.TempDir()` and pass its path to `-config`. A
+plan that reaches no provider is enough, because `-json` is a rendering concern.
+
 ```go
 func TestPlanJSONEmitsOnlyJSON(t *testing.T) {
-	// Uses whatever fixture config the neighbouring plan tests use; a plan that
-	// reaches no provider is enough, because the flag is a rendering concern.
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"plan", "-json", "-config", writeFixtureConfig(t)}, nil, &stdout, &stderr)
+	err := run([]string{"plan", "-json", "-config", fixtureConfigPath}, nil, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("run: %v\nstderr: %s", err, stderr.String())
 	}
@@ -498,9 +501,20 @@ func TestPlanJSONEmitsOnlyJSON(t *testing.T) {
 	if doc.SchemaVersion != 1 {
 		t.Errorf("schemaVersion = %d, want 1", doc.SchemaVersion)
 	}
-	for _, prose := range []string{"actions", "Run `mailctl apply`", "No changes"} {
-		if strings.Contains(stdout.String(), prose) && !strings.Contains(stdout.String(), `"actions"`) {
-			t.Errorf("stdout carries human framing %q, which breaks a jq consumer", prose)
+
+	// stdout must be the document and nothing else. Assert the shape directly:
+	// a prose check of the form `contains(prose) && !contains("\"actions\"")`
+	// can never fire, because the document always contains "actions".
+	out := stdout.String()
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
+		t.Errorf("stdout does not begin with a json object: %q", out)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(out), "}") {
+		t.Errorf("stdout does not end with a json object; something was appended: %q", out)
+	}
+	for _, prose := range []string{"Run `mailctl apply`", "No changes.", " actions\n"} {
+		if strings.Contains(out, prose) {
+			t.Errorf("stdout carries the human rendering %q, which breaks a jq consumer", prose)
 		}
 	}
 }
