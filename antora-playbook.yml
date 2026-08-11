@@ -6,8 +6,18 @@
 #
 # The content source is this working tree rather than a remote URL, so a local
 # build documents what is checked out right now instead of what was last pushed.
+antora:
+  extensions:
+    # Builds a client-side lunr index at generation time. The default UI reveals
+    # its search field only when SITE_SEARCH_PROVIDER is set, which the npm
+    # script and the CI workflow both do.
+    - require: '@antora/lunr-extension'
+      index_latest_only: true
+
 site:
   title: mailctl
+  # Required for canonical URLs, og:url and sitemap generation.
+  url: https://zoolcoder.github.io/mailctl
   start_page: mailctl::index.adoc
   robots: allow
 

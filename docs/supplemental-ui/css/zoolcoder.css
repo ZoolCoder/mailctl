@@ -469,11 +469,13 @@ a:hover { color: var(--zc-accent-strong); }
 
 /* The language, top-right, so yaml and console are distinguishable at a glance.
    Console is excluded: its prompt already says what it is. */
+.doc .listingblock pre.highlight > code[data-lang]:not([data-lang="console"]) { padding-top: 2rem; }
+
 .doc .listingblock pre.highlight > code[data-lang]:not([data-lang="console"])::before {
   content: attr(data-lang);
   position: absolute;
   top: 0.6rem;
-  right: 0.8rem;
+  left: 0.9rem;
   font-family: var(--zc-font-ui);
   font-size: 0.66rem;
   font-weight: 600;
@@ -490,6 +492,79 @@ a:hover { color: var(--zc-accent-strong); }
   font-weight: 500;
   font-size: 0.88rem;
   margin-bottom: 0.45rem;
+}
+
+/* Copy button. Hidden until the block is hovered or the button is focused, so
+   it does not compete with the code, but always reachable by keyboard. */
+.zc-copy {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  font-family: var(--zc-font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--zc-text-muted);
+  background: var(--zc-surface-2);
+  border: 1px solid var(--zc-border);
+  border-radius: var(--zc-radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--zc-dur) var(--zc-ease), color var(--zc-dur) var(--zc-ease),
+              border-color var(--zc-dur) var(--zc-ease);
+}
+
+.doc .listingblock > .content:hover .zc-copy,
+.zc-copy:focus-visible { opacity: 1; }
+
+.zc-copy:hover { color: var(--zc-accent); border-color: var(--zc-accent-strong); }
+
+.zc-copy.is-copied {
+  opacity: 1;
+  color: var(--zc-accent-contrast);
+  background: var(--zc-accent-strong);
+  border-color: var(--zc-accent-strong);
+}
+
+/* Touch devices have no hover, so the button stays visible there. */
+@media (hover: none) {
+  .zc-copy { opacity: 1; }
+}
+
+/* --------------------------------------------------------------- search box */
+
+#search-input {
+  font-family: var(--zc-font-ui);
+  font-size: 0.88rem;
+  color: var(--zc-text);
+  background: var(--zc-surface-2);
+  border: 1px solid var(--zc-border);
+  border-radius: var(--zc-radius-sm);
+  padding: 0.4rem 0.7rem;
+  width: 14rem;
+  transition: border-color var(--zc-dur) var(--zc-ease), width var(--zc-dur) var(--zc-ease);
+}
+
+#search-input::placeholder { color: var(--zc-text-faint); }
+#search-input:focus { border-color: var(--zc-accent-strong); outline: none; width: 17rem; }
+
+/* The results panel the search script injects. */
+.search-result-dropdown-menu {
+  background: var(--zc-surface);
+  border: 1px solid var(--zc-border);
+  border-radius: var(--zc-radius);
+  box-shadow: var(--zc-shadow);
+  color: var(--zc-text);
+}
+
+.search-result-document-title,
+.search-result-document-hit a { color: var(--zc-text-strong); }
+.search-result-highlight { color: var(--zc-accent); font-weight: 600; background: transparent; }
+.search-result-section-title { color: var(--zc-text-faint); }
+
+@media screen and (max-width: 1023px) {
+  #search-input { width: 100%; }
 }
 
 /* --------------------------------------------------------- syntax highlight */

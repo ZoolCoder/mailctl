@@ -1,0 +1,10 @@
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{site.title}} documentation">
+    <meta property="og:title" content="{{#if page.title}}{{page.title}}{{else}}{{site.title}}{{/if}}">
+    <meta property="og:description" content="{{#if page.description}}{{page.description}}{{else}}Declarative email configuration for custom domains: DNS, mailboxes, aliases and deliverability across Purelymail, Microsoft 365 and Cloudflare.{{/if}}">
+    <meta property="og:image" content="https://zoolcoder.github.io/mailctl/_/img/mark-512.png">
+    {{#with site.url}}<meta property="og:url" content="{{this}}{{{../page.url}}}">{{/with}}
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{#if page.title}}{{page.title}}{{else}}{{site.title}}{{/if}}">
+    <meta name="twitter:description" content="{{#if page.description}}{{page.description}}{{else}}Declarative email configuration for custom domains.{{/if}}">
+    <meta name="twitter:image" content="https://zoolcoder.github.io/mailctl/_/img/mark-512.png">

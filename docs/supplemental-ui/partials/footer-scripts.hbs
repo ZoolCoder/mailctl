@@ -34,3 +34,41 @@
   })
 })()
 </script>
+<script>
+// Copy buttons on code blocks. Injected rather than baked into the HTML so the
+// pages stay clean and a reader without JS simply sees no button.
+;(function () {
+  if (!navigator.clipboard) return
+
+  document.querySelectorAll('.doc .listingblock > .content').forEach(function (content) {
+    var code = content.querySelector('pre > code, pre')
+    if (!code) return
+
+    var button = document.createElement('button')
+    button.className = 'zc-copy'
+    button.type = 'button'
+    button.setAttribute('aria-label', 'Copy to clipboard')
+    button.textContent = 'Copy'
+    content.appendChild(button)
+
+    button.addEventListener('click', function () {
+      // Console blocks mark the prompt with .hljs-meta and upstream makes it
+      // unselectable; strip it so a pasted command runs as-is.
+      var clone = code.cloneNode(true)
+      clone.querySelectorAll('.hljs-meta').forEach(function (m) { m.remove() })
+      var text = clone.textContent.replace(/^[ \t]+/gm, function (indent) { return indent })
+
+      navigator.clipboard.writeText(text.trim()).then(function () {
+        button.textContent = 'Copied'
+        button.classList.add('is-copied')
+        setTimeout(function () {
+          button.textContent = 'Copy'
+          button.classList.remove('is-copied')
+        }, 1600)
+      }).catch(function () {
+        button.textContent = 'Press \u2318C'
+      })
+    })
+  })
+})()
+</script>
