@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 
@@ -72,11 +73,20 @@ func (s *server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"reports": out})
 }
 
+// writeJSON encodes into a buffer first rather than straight to w. A payload
+// encoding/json cannot marshal at all (a func or channel field) fails before
+// any byte is written, so encoding straight to w would leave the status
+// unset — and Go answers an unset status with 200. That would hand the
+// client a successful, empty response for a request that actually failed,
+// with no server-side trail either, since this request path never logs.
 func writeJSON(w http.ResponseWriter, payload any) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
+		writeError(w, err)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	// Any encode failure here has already written a partial body, so there is
-	// nothing useful to report to the client.
-	_ = json.NewEncoder(w).Encode(payload)
+	_, _ = w.Write(buf.Bytes())
 }
 
 // writeError sends the error text. Provider errors are safe to show: the CLI

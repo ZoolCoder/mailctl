@@ -16,16 +16,20 @@ import (
 )
 
 type fakePlanner struct {
-	domains  []config.Domain
-	planned  plan.Plan
-	planErr  error
-	planned_ int // times Plan was called
+	domains        []config.Domain
+	planned        plan.Plan
+	planErr        error
+	planned_       int // times Plan was called
+	domainsCalled_ int // times Domains was called
 	// desiredErr maps a domain name to the error Desired should return for it.
 	// A domain absent from this map succeeds with no records.
 	desiredErr map[string]error
 }
 
-func (f *fakePlanner) Domains() ([]config.Domain, error) { return f.domains, nil }
+func (f *fakePlanner) Domains() ([]config.Domain, error) {
+	f.domainsCalled_++
+	return f.domains, nil
+}
 func (f *fakePlanner) Plan(context.Context) (plan.Plan, error) {
 	f.planned_++
 	return f.planned, f.planErr
@@ -230,6 +234,9 @@ func TestPlanEndpointReturnsTheProjectedPlan(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 — body: %s", rec.Code, rec.Body.String())
 	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", got)
+	}
 	var doc struct {
 		SchemaVersion int `json:"schemaVersion"`
 		Actions       []struct {
@@ -265,6 +272,27 @@ func TestPlanEndpointRefusesGET(t *testing.T) {
 	}
 	if fake.planned_ != 0 {
 		t.Errorf("Plan ran %d times for a GET; a prefetch must not spend provider calls", fake.planned_)
+	}
+}
+
+// The audit mirror of TestPlanEndpointRefusesGET: auditing calls provider APIs
+// through Domains and Desired, and a GET is what a prefetch, a crawler, or an
+// address-bar visit issues.
+func TestAuditEndpointRefusesGET(t *testing.T) {
+	fake := &fakePlanner{domains: []config.Domain{{Name: "example.com"}}}
+	server := testServer(t, fake)
+
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, authed(http.MethodGet, "/api/audit"))
+
+	if rec.Code == http.StatusOK {
+		t.Error("GET /api/audit returned 200; auditing must require an explicit POST")
+	}
+	if strings.Contains(rec.Body.String(), "<div id=\"app\"") {
+		t.Error("GET /api/audit served the html shell; an api path must never fall through to the spa")
+	}
+	if fake.domainsCalled_ != 0 {
+		t.Errorf("Domains ran %d times for a GET; a prefetch must not spend provider calls", fake.domainsCalled_)
 	}
 }
 
@@ -396,5 +424,24 @@ func TestAuditStubRequiresAuthentication(t *testing.T) {
 	server.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status = %d for unauthenticated POST /api/audit, want 403", rec.Code)
+	}
+}
+
+// A payload encoding/json cannot marshal at all — a func or channel field —
+// fails before the first byte is written. Encoding straight to the
+// ResponseWriter would leave the status unset, and Go answers an unset status
+// with 200: a successful, empty response for a request that actually failed,
+// with no server-side trail either since this request path never logs.
+// writeJSON must catch that failure and answer 500 with a non-empty body.
+func TestWriteJSONRefusesAnUnmarshallablePayload(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	writeJSON(rec, struct{ Do func() }{Do: func() {}})
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 for a payload encoding/json cannot marshal", rec.Code)
+	}
+	if rec.Body.Len() == 0 {
+		t.Error("body is empty; a marshal failure must not look like a successful empty response")
 	}
 }
