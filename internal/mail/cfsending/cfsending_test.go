@@ -295,3 +295,69 @@ func TestProviderIsRegistered(t *testing.T) {
 }
 
 var _ = json.Marshal
+
+// Actual reports whether Email Sending is live. The subtlety is that a
+// subdomain can exist while still being disabled, and treating "found" as
+// "enabled" would report outbound mail as working when Cloudflare has not
+// turned it on yet.
+func TestActualRequiresTheSubdomainToBeEnabledNotMerelyPresent(t *testing.T) {
+	client, _ := serve(t, map[string]string{
+		"/zones/z1/email/sending/subdomains": `{"success":true,"errors":[],"result":[
+			{"id":"s1","name":"a.com","enabled":false}
+		],"result_info":{"page":1,"total_pages":1}}`,
+	})
+	provider := &Provider{client: client, zones: stubZones{}}
+
+	state, err := provider.Actual(context.Background(), sendingDomain())
+	if err != nil {
+		t.Fatalf("Actual: %v", err)
+	}
+
+	if state.DomainExists {
+		t.Error("DomainExists = true for a subdomain that is present but disabled")
+	}
+	if len(state.Notes) == 0 || !strings.Contains(strings.Join(state.Notes, " "), "not enabled yet") {
+		t.Errorf("Notes = %v, want an explanation that Email Sending is not enabled yet", state.Notes)
+	}
+}
+
+func TestActualReportsEnabledWithoutANote(t *testing.T) {
+	client, _ := serve(t, map[string]string{
+		"/zones/z1/email/sending/subdomains": `{"success":true,"errors":[],"result":[
+			{"id":"s1","name":"a.com","enabled":true}
+		],"result_info":{"page":1,"total_pages":1}}`,
+	})
+	provider := &Provider{client: client, zones: stubZones{}}
+
+	state, err := provider.Actual(context.Background(), sendingDomain())
+	if err != nil {
+		t.Fatalf("Actual: %v", err)
+	}
+
+	if !state.DomainExists {
+		t.Error("DomainExists = false although the subdomain is enabled")
+	}
+	if len(state.Notes) != 0 {
+		t.Errorf("Notes = %v, want none once Email Sending is live", state.Notes)
+	}
+}
+
+func TestActualTreatsAnAbsentSubdomainAsNotEnabled(t *testing.T) {
+	client, _ := serve(t, map[string]string{
+		"/zones/z1/email/sending/subdomains": `{"success":true,"errors":[],"result":[],
+			"result_info":{"page":1,"total_pages":1}}`,
+	})
+	provider := &Provider{client: client, zones: stubZones{}}
+
+	state, err := provider.Actual(context.Background(), sendingDomain())
+	if err != nil {
+		t.Fatalf("Actual: %v", err)
+	}
+
+	if state.DomainExists {
+		t.Error("DomainExists = true although no subdomain exists")
+	}
+	if len(state.Notes) == 0 {
+		t.Error("want a note explaining that Email Sending is not enabled yet")
+	}
+}
