@@ -748,10 +748,16 @@ func assetHandler() (http.Handler, error) {
 			files.ServeHTTP(w, r)
 			return
 		}
-		// A request for something that looks like a file is a genuine 404.
-		// Serving the HTML shell for a missing .js would reach the browser as a
-		// script and fail with an unrelated parse error.
-		if path.Ext(clean) != "" {
+		// A miss that names an asset type the bundle actually contains is a
+		// genuine 404: serving the HTML shell in place of a missing .js reaches
+		// the browser as a script and fails with an unrelated parse error.
+		//
+		// Do NOT decide this with `path.Ext(clean) != ""`. This tool's
+		// client-side routes are domain names, and path.Ext("/domains/
+		// example.com") is ".com" — that rule 404s every deep link. Collect the
+		// extensions present in the embedded bundle instead (fs.WalkDir at
+		// startup) and 404 only when the miss carries one of them.
+		if bundleExtensions[path.Ext(clean)] {
 			http.NotFound(w, r)
 			return
 		}
