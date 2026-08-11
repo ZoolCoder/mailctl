@@ -46,7 +46,13 @@ provider's SPF requirement into the single TXT record RFC 7208 permits.
 
 ## Install
 
-Download a binary for your platform from the
+On macOS or Linux with Homebrew:
+
+```console
+$ brew install zoolcoder/tap/mailctl
+```
+
+Or download a binary for your platform from the
 [latest release](https://github.com/zoolcoder/mailctl/releases/latest) — Linux,
 macOS and Windows, `amd64` and `arm64`, with SHA-256 checksums:
 

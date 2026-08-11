@@ -8,7 +8,13 @@ under **Breaking**.
 
 ## Unreleased
 
-Nothing yet.
+### Added
+
+- A Homebrew tap: `brew install zoolcoder/tap/mailctl` installs the published
+  release binary on macOS and Linux, `arm64` and `amd64`, with every archive's
+  SHA-256 pinned. The formula lives in
+  [zoolcoder/homebrew-tap](https://github.com/zoolcoder/homebrew-tap); this
+  repository is unchanged by it apart from the install instructions.
 
 ## v0.1.0 — 2026-08-11
 

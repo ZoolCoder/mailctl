@@ -9,6 +9,19 @@ configure at install time.
 * A Cloudflare API token with DNS edit permission on the zones you manage.
 * A token for whichever mail provider each domain uses.
 
+== Install with Homebrew
+
+On macOS or Linux:
+
+[source,console]
+----
+$ brew install zoolcoder/tap/mailctl
+$ mailctl version
+----
+
+The formula installs the same release binary described below, with its SHA-256
+pinned, so an altered release fails to install rather than installing quietly.
+
 == Download a binary
 
 No toolchain needed. Binaries for Linux, macOS and Windows on `amd64` and
