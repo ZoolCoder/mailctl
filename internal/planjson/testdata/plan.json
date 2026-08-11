@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "actions": [
+    {
+      "id": "0",
+      "op": "CREATE",
+      "resource": "mailbox",
+      "domain": "example.com",
+      "provider": "purelymail",
+      "detail": "create contact@example.com",
+      "manual": false
+    }
+  ]
+}
