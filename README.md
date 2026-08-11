@@ -46,17 +46,26 @@ provider's SPF requirement into the single TXT record RFC 7208 permits.
 
 ## Install
 
+Download a binary for your platform from the
+[latest release](https://github.com/zoolcoder/mailctl/releases/latest) — Linux,
+macOS and Windows, `amd64` and `arm64`, with SHA-256 checksums:
+
+```console
+$ tar -xzf mailctl_v0.1.0_linux_amd64.tar.gz
+$ ./mailctl version
+```
+
+With a Go toolchain, Go 1.26 or newer:
+
 ```console
 $ go install github.com/zoolcoder/mailctl/cmd/mailctl@latest
 ```
 
-Or build from a checkout:
+Or from a checkout:
 
 ```console
 $ go build ./cmd/mailctl
 ```
-
-Go 1.26 or newer.
 
 ## Quick start
 
@@ -149,6 +158,10 @@ $ npm run docs        # output in build/site
 kept in the repository deliberately: they record *why* several non-obvious
 decisions are the way they are — the provider limitations, the two-pass domain
 verification flow, and the reasoning behind each safety gate.
+
+## Changelog
+
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 

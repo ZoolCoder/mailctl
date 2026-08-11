@@ -1,0 +1,77 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  # Lets a tag that was pushed before this workflow existed get its binaries.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build and attach binaries to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      # A release that fails its own test suite should not exist.
+      - name: Verify before publishing
+        run: |
+          test -z "$(gofmt -l .)" || { echo "::error::not gofmt-clean"; exit 1; }
+          go vet ./...
+          go test -count=1 ./...
+
+      - name: Build every platform
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # CGO is off so every target cross-compiles from this one runner, and
+          # -trimpath keeps the runner's paths out of the binaries.
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            os=${target%/*}
+            arch=${target#*/}
+            ext=""
+            [ "$os" = "windows" ] && ext=".exe"
+
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build \
+              -trimpath \
+              -ldflags "-s -w -X main.version=${TAG}" \
+              -o "dist/mailctl${ext}" ./cmd/mailctl
+
+            # Ship the licence and notice alongside the binary: Apache-2.0
+            # section 4 requires both to travel with a distribution.
+            cp LICENSE NOTICE README.md dist/
+            name="mailctl_${TAG}_${os}_${arch}"
+            if [ "$os" = "windows" ]; then
+              (cd dist && zip -q "../${name}.zip" "mailctl${ext}" LICENSE NOTICE README.md)
+            else
+              tar -czf "${name}.tar.gz" -C dist "mailctl${ext}" LICENSE NOTICE README.md
+            fi
+            rm -f "dist/mailctl${ext}"
+          done
+          rm -rf dist
+          ls -l mailctl_*
+
+      - name: Checksums
+        run: sha256sum mailctl_* > checksums.txt && cat checksums.txt
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: gh release upload "$TAG" mailctl_* checksums.txt --clobber --repo "$GITHUB_REPOSITORY"

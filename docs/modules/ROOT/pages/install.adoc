@@ -9,9 +9,28 @@ configure at install time.
 * A Cloudflare API token with DNS edit permission on the zones you manage.
 * A token for whichever mail provider each domain uses.
 
+== Download a binary
+
+No toolchain needed. Binaries for Linux, macOS and Windows on `amd64` and
+`arm64`, with SHA-256 checksums, are attached to every
+https://github.com/zoolcoder/mailctl/releases/latest[release]:
+
+[source,console]
+----
+$ tar -xzf mailctl_v0.1.0_linux_amd64.tar.gz
+$ ./mailctl version
+----
+
+Verify the download against the published checksums:
+
+[source,console]
+----
+$ sha256sum -c checksums.txt --ignore-missing
+----
+
 == Install with go install
 
-The shortest path, if you have a Go toolchain:
+If you have a Go toolchain:
 
 [source,console]
 ----
