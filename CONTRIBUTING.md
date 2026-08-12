@@ -24,6 +24,26 @@ $ go vet ./...      # must be silent
 $ go test ./...     # must pass every package
 ```
 
+## The UI frontend and the committed bundle
+
+The frontend for `mailctl ui` lives in `web/`, with its own `package.json` and
+`package-lock.json` — a separate toolchain from the Antora docs build at the
+repository root. CI installs it and builds it on Node 22.
+
+`internal/ui/dist` is generated from `web/` and must never be hand-edited.
+Rebuild it with:
+
+```console
+$ npm run ui:build
+```
+
+and commit the result alongside whatever change in `web/` caused it, in the
+same pull request. `go install` cannot run npm, so the committed bundle is what
+lets a `go install`-only build of `mailctl` still serve the UI; if the two ever
+drift, the binary ships whatever was last committed regardless of what `web/`
+actually contains. CI rebuilds the bundle and fails if it differs from what is
+committed, so a stale bundle cannot merge.
+
 And the linter, which CI also runs:
 
 ```console

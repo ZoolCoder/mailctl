@@ -10,6 +10,15 @@ under **Breaking**.
 
 ### Added
 
+- `mailctl ui`: a local, read-only web UI for browsing what `plan` and `audit`
+  would report. It runs as a foreground server on `127.0.0.1` with a
+  kernel-chosen port and a per-process auth token, reads credentials from the
+  environment exactly like every other command, and writes nothing to disk.
+  Config authoring and `apply` are not part of this release.
+- `plan -json`: prints the action list as JSON (`schemaVersion` 1) instead of
+  the human summary, for gating a CI pipeline on whether anything would change.
+  The local UI renders through the same projection, so a script and the UI can
+  never disagree about what a plan intends to do.
 - A Homebrew tap: `brew install zoolcoder/tap/mailctl` installs the published
   release binary on macOS and Linux, `arm64` and `amd64`, with every archive's
   SHA-256 pinned. The formula lives in

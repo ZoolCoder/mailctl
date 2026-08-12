@@ -20,6 +20,33 @@ config file.` Anything else is a list you should read before applying.
 Planning is pure: providers do their reading first, then compute actions with no
 further I/O. That is why `plan` can be trusted not to change anything.
 
+`-json` prints the same action list as JSON instead of the human summary, and
+nothing else — no banner, no trailing count — so it is safe to pipe:
+
+[source,console]
+----
+$ mailctl plan -json
+{"schemaVersion":1,"actions":[{"id":"0","op":"create","resource":"dns","domain":"example.com","provider":"purelymail","detail":"MX example.com -> mailserver.purelymail.com","manual":false}]}
+----
+
+`schemaVersion` is `1`. It only changes if a field is removed or repurposed, so a
+consumer reading fields by name rather than by position stays compatible across
+minor releases. An action never carries the code that would execute it — that
+exists only inside `apply` — so this output can be logged, diffed, or handed to a
+pipeline with no risk of it being mistaken for a way to make mailctl do anything.
+
+The most useful thing to do with it is gate a pipeline on whether there is any
+drift at all:
+
+[source,console]
+----
+$ mailctl plan -json | jq -e '.actions | length == 0'
+----
+
+`jq -e` exits `1` when the filter's result is `false`, so this line exits
+non-zero exactly when `plan` found something to change — fail a CI job on drift,
+or skip a step when there is none.
+
 == apply
 
 Executes exactly the plan that `plan` would print.
@@ -53,6 +80,50 @@ This answers a different question from `plan`. `plan` compares config against th
 provider's API; `audit` asks whether the world can actually see the result. A
 record the provider believes it published but which never reached DNS shows up
 here and nowhere else.
+
+== ui
+
+Runs a local web UI for browsing what `plan` and `audit` would report, without a
+terminal.
+
+[source,console]
+----
+$ mailctl ui
+mailctl ui listening on http://127.0.0.1:54217/?token=Uu4z...
+press Ctrl-C to stop
+----
+
+It lists the domains from the config immediately, since that costs no provider
+call. Plan and Audit are separate buttons: each runs the same live check the
+equivalent command would, and only when clicked — the page never spends a
+provider call, or a rate-limit token, on its own.
+
+This release is read-only. There is no button and no endpoint that applies
+anything; the UI can show you a plan, not execute one. Config authoring and
+`apply` are on
+https://github.com/zoolcoder/mailctl/blob/main/ROADMAP.md[the roadmap].
+
+Credentials come from the environment exactly as they do for every other
+command — the same `CLOUDFLARE_API_TOKEN`, `PURELYMAIL_API_TOKEN` and `MS365_*`
+variables. There is no login form and nothing to configure, because the UI is
+the same binary reading the same environment, not a separate service with its
+own account model.
+
+mailctl has no daemon and no state file — the live provider APIs are the state —
+and `ui` does not change that. It is a foreground process: it binds
+`127.0.0.1` on a port the kernel chooses (so two instances never collide and the
+port cannot be guessed by scanning a fixed one), prints a URL containing a
+token generated fresh for that process, and writes nothing to disk. Stopping it
+with Ctrl-C is the only way it stops; there is nothing to clean up afterwards.
+
+The token in the URL is required on every `/api/*` request and lives in memory
+only — it is not written anywhere and does not survive the process exiting. The
+page also strips it from the browser's address bar once it has loaded, so a
+plain reload has no token to send. If that happens, the page says so; reopen the
+URL that `mailctl ui` printed in its terminal, which still carries a valid token
+for as long as that process is running.
+
+`-addr` and `-no-browser` control it; see the flags table below.
 
 == import
 
@@ -120,6 +191,7 @@ mail client therefore cannot use the account password.
 
 | `-config` | all | Config file path. Defaults to `mailctl.yaml`.
 | `-domain` | all | Limit the run to this domain. Repeat for several. Omit to process every domain in the file.
+| `-json` | plan | Print the action list as JSON instead of the human summary.
 | `-yes` | apply | Skip the deletion confirmation prompt.
 | `-prune` | plan, apply | Plan deletion of provider-side objects absent from the config.
 | `-prune-mailboxes` | plan, apply | Allow `-prune` to delete mailboxes. Has no effect without `-prune`, and is rejected if given alone.
@@ -131,6 +203,8 @@ mail client therefore cannot use the account password.
 | `-alias-domain` | alias add, rm | Which domain the alias belongs to.
 | `-to` | alias add | Alias target address. Repeat for several.
 | `-name` | apppass | Label for the application credential.
+| `-addr` | ui | Address to listen on. Defaults to `127.0.0.1:0`, letting the kernel choose the port.
+| `-no-browser` | ui | Do not open a browser after starting.
 |===
 
 Flags scoped to one command are rejected on the others rather than ignored. That

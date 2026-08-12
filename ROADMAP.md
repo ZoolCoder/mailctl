@@ -74,11 +74,26 @@ the existing model: Fastmail, Migadu, Google Workspace, Zoho.
 Google Workspace would be the most useful and the most work, since its Admin SDK
 splits mailbox, alias and routing concerns across separate APIs.
 
-### Machine-readable plan output
+### The local UI: config authoring, then apply
 
-`plan` prints for humans. A `-json` flag emitting the action list would let people
-gate a CI pipeline on what `mailctl` intends to change, or diff two plans. The
-action model is already structured, so this is mostly a rendering concern.
+`mailctl ui` ships in this release as a read-only viewer: it lists domains from
+the config and runs `plan` and `audit` against live providers only when asked,
+through the same JSON projection `plan -json` uses. Two phases remain, described
+in full in
+[`docs/superpowers/specs/2026-08-11-mailctl-ui-design.md`](docs/superpowers/specs/2026-08-11-mailctl-ui-design.md):
+
+- **Form-based `mailctl.yaml` authoring with live validation.** The hard part is
+  keeping the form and `config.Validate` from disagreeing about what is
+  acceptable — a form that accepts something the CLI would reject on `apply` is
+  worse than no form, for the same reason the project rejects
+  accepted-and-ignored configuration everywhere else.
+- **Apply from the UI, with the destructive-action friction preserved.** The
+  design already settles the risky part: apply must resolve actions from a plan
+  the server holds, never reconstruct one from client-supplied JSON, because a
+  plan round-tripped through the browser would let a page ask for an action the
+  plan never actually contained. What is still open is making the
+  `-prune`/`-prune-mailboxes`/type-the-domain friction survive the trip into a
+  UI rather than getting lost on the way.
 
 ### Better `import`
 

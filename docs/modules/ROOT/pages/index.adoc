@@ -72,7 +72,9 @@ elsewhere, so there is no drift between mailctl's idea of the world and the worl
 Plan then apply::
 `plan` reads live state, diffs it, and prints an ordered list of actions. It
 changes nothing, and performs no I/O once planning has begun. `apply` executes
-exactly that list.
+exactly that list. `mailctl ui` shows the same plan and audit in a browser
+instead of a terminal — read-only in this release — and `plan -json` gives the
+same action list as JSON for a script.
 
 Idempotence::
 Running `apply` twice is the same as running it once. A converged domain reports

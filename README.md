@@ -102,6 +102,10 @@ report it exactly once — when the mailbox is genuinely created, not when it is
 planned. `-secrets-out` writes those to a `0600` file and refuses a path that
 already exists.
 
+`mailctl ui` opens the same plan and audit in a browser, read-only in this
+release, on a loopback port with a per-process token — no separate login, no
+files written.
+
 See the [quickstart](https://zoolcoder.github.io/mailctl/mailctl/quickstart.html)
 for the full walkthrough.
 
