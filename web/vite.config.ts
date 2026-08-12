@@ -11,10 +11,13 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        // Stable, non-hashed entry names keep the committed bundle's diff
-        // readable in review; asset hashing still applies to imported chunks.
+        // Stable, non-hashed names keep the committed bundle's diff readable in
+        // review. All three patterns must be pinned: an unpinned chunkFileNames
+        // emits a content-hashed filename on the first dynamic import, and that
+        // arrives as a NEW untracked file rather than a modified one.
         entryFileNames: 'app.js',
         assetFileNames: 'app-[name].[ext]',
+        chunkFileNames: 'app-chunk-[name].js',
       },
     },
   },

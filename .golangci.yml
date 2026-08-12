@@ -93,6 +93,11 @@ linters:
         # The UI reaches providers only through the engine. A handler that
         # talked to a provider directly would duplicate the engine's ordering
         # and safety decisions, and the two would drift apart.
+        # The deny list covers the API clients as well as the four providers.
+        # Naming only internal/mail/* would leave the UI free to import
+        # internal/cfapi and internal/dns/cloudflare — the packages that hold the
+        # Cloudflare token with DNS write across every managed zone, which is the
+        # credential this boundary exists to keep away from a request handler.
         ui-goes-through-the-engine:
           files:
             - '**/internal/ui/*.go'
@@ -105,6 +110,14 @@ linters:
               desc: use the engine, not a provider
             - pkg: github.com/zoolcoder/mailctl/internal/mail/cfsending
               desc: use the engine, not a provider
+            - pkg: github.com/zoolcoder/mailctl/internal/cfapi
+              desc: use the engine; this client holds the Cloudflare token
+            - pkg: github.com/zoolcoder/mailctl/internal/dns/cloudflare
+              desc: use the engine; this client holds the Cloudflare token
+            - pkg: github.com/zoolcoder/mailctl/internal/graphapi
+              desc: use the engine; this client holds the Microsoft Graph token
+            - pkg: github.com/zoolcoder/mailctl/internal/worker
+              desc: use the engine, not the Worker deployer
 
   exclusions:
     rules:

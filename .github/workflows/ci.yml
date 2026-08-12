@@ -103,11 +103,17 @@ jobs:
 
       # The committed bundle exists so `go install` works without npm. If it can
       # drift from source, it will, and the drift would ship.
+      #
+      # Uses `git status --porcelain`, NOT `git diff`: git diff compares tracked
+      # files only, so a NEWLY EMITTED asset — a code-split chunk, a font, a
+      # second stylesheet — is untracked, invisible to diff, and would sail
+      # through this check while `go:embed all:dist` shipped a bundle missing it.
       - name: verify the committed ui bundle is current
         run: |
           npm run ui:build
-          if ! git diff --quiet -- internal/ui/dist; then
+          drift=$(git status --porcelain -- internal/ui/dist)
+          if [ -n "$drift" ]; then
             echo "::error::internal/ui/dist is stale; run 'npm run ui:build' and commit the result"
-            git diff --stat -- internal/ui/dist
+            echo "$drift"
             exit 1
           fi
