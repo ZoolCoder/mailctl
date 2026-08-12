@@ -21,13 +21,43 @@ Planning is pure: providers do their reading first, then compute actions with no
 further I/O. That is why `plan` can be trusted not to change anything.
 
 `-json` prints the same action list as JSON instead of the human summary, and
-nothing else — no banner, no trailing count — so it is safe to pipe:
+nothing else — no banner, no trailing count — so it is safe to pipe. This is the
+real output for a config with one domain and one mailbox not yet created,
+trimmed to its first two actions (a full run against this config lists nine):
 
 [source,console]
 ----
 $ mailctl plan -json
-{"schemaVersion":1,"actions":[{"id":"0","op":"create","resource":"dns","domain":"example.com","provider":"purelymail","detail":"MX example.com -> mailserver.purelymail.com","manual":false}]}
+{
+  "schemaVersion": 1,
+  "actions": [
+    {
+      "id": "0",
+      "op": "CREATE",
+      "resource": "dns",
+      "domain": "example.com",
+      "provider": "cloudflare",
+      "detail": "MX example.com -> mailserver.purelymail.com priority=50",
+      "manual": false
+    },
+    {
+      "id": "1",
+      "op": "CREATE",
+      "resource": "dns",
+      "domain": "example.com",
+      "provider": "cloudflare",
+      "detail": "TXT example.com -> purelymail_ownership_proof=abc",
+      "manual": false
+    }
+  ]
+}
 ----
+
+`op` is always uppercase — `CREATE`, `UPDATE`, `DELETE` or `MANUAL` — matching
+the CLI's internal action model exactly. `provider` names whoever performs the
+write: a `dns` action's provider is `cloudflare`, because Cloudflare is what
+publishes the record, even on a domain configured for the `purelymail` mail
+provider; `domain` and `mailbox` actions carry the mail provider instead.
 
 `schemaVersion` is `1`. It only changes if a field is removed or repurposed, so a
 consumer reading fields by name rather than by position stays compatible across
