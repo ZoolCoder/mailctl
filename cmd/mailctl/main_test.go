@@ -1205,3 +1205,17 @@ func TestUIRejectsRawOptionsStar(t *testing.T) {
 		t.Errorf("serveUI: %v", err)
 	}
 }
+
+func TestUIStartsWithoutACloudflareToken(t *testing.T) {
+	u := unconfiguredPlanner{cfg: config.Config{Domains: []config.Domain{{Name: "a.example"}, {Name: "b.example"}}}, domains: domainList{"b.example"}, err: fmt.Errorf("CLOUDFLARE_API_TOKEN is required")}
+	ds, err := u.Domains()
+	if err != nil || len(ds) != 1 || ds[0].Name != "b.example" {
+		t.Fatalf("domains = %+v err = %v", ds, err)
+	}
+	if _, err := u.Plan(context.Background()); err == nil || !strings.Contains(err.Error(), "CLOUDFLARE_API_TOKEN") {
+		t.Fatalf("plan err = %v", err)
+	}
+	if _, err := u.Desired(context.Background(), ds[0]); err == nil {
+		t.Fatal("desired should fail without a token")
+	}
+}

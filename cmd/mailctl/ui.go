@@ -11,12 +11,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/zoolcoder/mailctl/internal/audit"
 	"github.com/zoolcoder/mailctl/internal/config"
 	"github.com/zoolcoder/mailctl/internal/dns"
-	"github.com/zoolcoder/mailctl/internal/engine"
+	"github.com/zoolcoder/mailctl/internal/plan"
 	"github.com/zoolcoder/mailctl/internal/ui"
 	"github.com/zoolcoder/zcadmin"
 	"github.com/zoolcoder/zcadmin/auth"
@@ -35,7 +36,7 @@ type uiOptions struct {
 // foreground server on purpose: mailctl has no daemon, because the live
 // provider APIs are the state. The only things it writes are the password
 // hash and the activity log, under the data directory.
-func serveUI(ctx context.Context, runner *engine.Engine, opts uiOptions, stdout io.Writer) error {
+func serveUI(ctx context.Context, runner ui.Planner, opts uiOptions, stdout io.Writer) error {
 	if err := loopbackOnly(opts.addr, opts.insecure); err != nil {
 		return err
 	}
@@ -135,4 +136,29 @@ func browse(url string) error {
 	default:
 		return exec.Command("xdg-open", url).Start()
 	}
+}
+
+// unconfiguredPlanner is the ui's Planner when no Cloudflare token is set:
+// it lists the config's domains so every page renders, and every call that
+// would reach a provider returns the one error that explains the fix.
+type unconfiguredPlanner struct {
+	cfg     config.Config
+	domains domainList
+	err     error
+}
+
+func (u unconfiguredPlanner) Domains() ([]config.Domain, error) {
+	var out []config.Domain
+	for _, d := range u.cfg.Domains {
+		if len(u.domains) == 0 || slices.Contains(u.domains, d.Name) {
+			out = append(out, d)
+		}
+	}
+	return out, nil
+}
+
+func (u unconfiguredPlanner) Plan(context.Context) (plan.Plan, error) { return plan.Plan{}, u.err }
+
+func (u unconfiguredPlanner) Desired(context.Context, config.Domain) ([]dns.Record, error) {
+	return nil, u.err
 }

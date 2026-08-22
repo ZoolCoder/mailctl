@@ -381,6 +381,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		command = "apply"
 	}
 
+	// ui may start without a token: its pages read the config, and only a
+	// plan or audit needs Cloudflare. The page then says what is missing
+	// instead of the command refusing to start.
+	if command == "ui" && os.Getenv("CLOUDFLARE_API_TOKEN") == "" {
+		return serveUI(ctx, unconfiguredPlanner{cfg: cfg, domains: domains,
+			err: errors.New("CLOUDFLARE_API_TOKEN is required — set it and restart `mailctl ui`")},
+			uiOptions{addr: *uiAddr, insecure: *uiInsecure, dataDir: *uiData,
+				configPath: *configPath, openBrowser: !*uiNoBrowser}, stdout)
+	}
+
 	// Every command still reachable here (plan, apply, audit, import, ui, and
 	// the mailbox/alias add fallthrough above) reconciles against Cloudflare.
 	runner, deps, err := buildEngine(cfg, domains, *prune, *pruneMailboxes, *replaceDNS, secrets)
