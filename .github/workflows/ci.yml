@@ -24,17 +24,6 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      # zcadmin — the shell the local admin page is built on — is a private
-      # module. GOPRIVATE keeps Go away from the public proxy and checksum
-      # database for it, and the token lets git fetch it. The secret is a
-      # fine-grained PAT with read access to zoolcoder/zcadmin.
-      - name: reach the private zcadmin module
-        env:
-          ZCADMIN_TOKEN: ${{ secrets.ZCADMIN_TOKEN }}
-        run: |
-          echo "GOPRIVATE=github.com/zoolcoder/zcadmin" >> "$GITHUB_ENV"
-          git config --global url."https://x-access-token:${ZCADMIN_TOKEN}@github.com/zoolcoder/zcadmin".insteadOf "https://github.com/zoolcoder/zcadmin"
-
       - name: gofmt
         # gofmt exits 0 even when it has complaints, so the output is the signal.
         run: |
