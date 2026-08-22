@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>{{.Card.Name}} · mailctl</title>
+{{template "head" .}}
+<style>
+  .kv { display:grid; grid-template-columns:minmax(8rem, 12rem) 1fr; gap:.45rem .8rem; font-size:13.5px; margin:0 }
+  .kv dt { color:var(--text-faint) }
+  .kv dd { margin:0; min-width:0; overflow-wrap:anywhere }
+  .card .foot { margin-top:.9rem; padding-top:.8rem; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:center; font-size:12.5px; color:var(--text-faint) }
+  .card .foot form { margin-left:auto }
+  td.content { overflow-wrap:anywhere; max-width:34rem }
+  .inner { margin:0 -1.1rem -1rem; border:0; border-top:1px solid var(--line); border-radius:0 0 var(--radius-lg) var(--radius-lg); box-shadow:none }
+</style>
+</head>
+<body>
+{{template "shell-open" .}}
+<div class="page-head">
+  <div><h1>{{.Card.Name}}</h1><div class="sub"><a href="/domains">domains</a> · zone <span class="mono">{{.Card.Zone}}</span> · {{range .Card.Providers}}<span class="chip plain">{{.}}</span> {{end}}</div></div>
+  <div class="actions">
+    <form method="post" action="/plan/run"><input type="hidden" name="return_to" value="/domains/{{.Card.Name}}"><input type="hidden" name="domain" value="{{.Card.Name}}"><button class="btn primary" type="submit" title="{{if .Scoped}}plans only this domain{{else}}plans every domain and shows this one's share{{end}}">Run plan</button></form>
+    <form method="post" action="/audit/run"><input type="hidden" name="return_to" value="/domains/{{.Card.Name}}"><input type="hidden" name="domain" value="{{.Card.Name}}"><button class="btn" type="submit">Run audit</button></form>
+  </div>
+</div>
+
+<section class="stats" aria-label="summary">
+  <div class="stat"><div class="k">Mailboxes</div><div class="v">{{.Card.Mailboxes}}</div></div>
+  <div class="stat"><div class="k">Aliases</div><div class="v">{{.Card.Aliases}}</div><div class="s">{{if .CatchAllTo}}plus a catch-all{{else}}no catch-all{{end}}</div></div>
+  <div class="stat"><div class="k">Last plan</div>{{with .Card.Plan}}{{if .Err}}<div class="v coral">✕</div><div class="s">failed {{.When}}</div>{{else}}<div class="v {{if .Counts.Delete}}coral{{else if .Counts.Total}}amber{{else}}teal{{end}}">{{.Counts.Total}}</div><div class="s">{{.Counts.Create}} create · {{.Counts.Update}} update · {{.Counts.Delete}} delete · {{.When}}</div>{{end}}{{else}}<div class="v faint">—</div><div class="s">not run yet</div>{{end}}</div>
+  <div class="stat"><div class="k">Last audit</div>{{with .Card.Audit}}{{if .Err}}<div class="v coral">✕</div><div class="s">error {{.When}}</div>{{else}}<div class="v {{if .Fail}}coral{{else}}teal{{end}}">{{.Pass}}<span class="faint" style="font-size:16px">/{{add .Pass .Fail}}</span></div><div class="s">checks passing · {{.When}}</div>{{end}}{{else}}<div class="v faint">—</div><div class="s">not run yet</div>{{end}}</div>
+</section>
+
+<div class="grid cols-2">
+  <section class="card pad">
+    <h2>Mailboxes <span class="n">{{len .Mailboxes}}</span></h2>
+    {{if .Mailboxes}}<div class="table-wrap inner"><table class="table">
+      <thead><tr><th>Address</th><th>Password from</th><th>Display name</th><th class="num">Recovery</th></tr></thead>
+      <tbody>{{range .Mailboxes}}<tr><td class="mono">{{.Address}}</td><td class="mono">{{.Credential}}</td><td>{{if .DisplayName}}{{.DisplayName}}{{else}}<span class="faint">—</span>{{end}}</td><td class="num">{{.Recovery}}</td></tr>{{end}}</tbody>
+    </table></div>{{else}}<p class="empty">no mailboxes declared</p>{{end}}
+  </section>
+
+  <section class="card pad">
+    <h2>Aliases &amp; routing <span class="n">{{len .Aliases}}{{if .CatchAllTo}} + catch-all{{end}}</span></h2>
+    {{if or .Aliases .CatchAllTo}}<div class="table-wrap inner"><table class="table">
+      <thead><tr><th>Match</th><th>Delivers to</th></tr></thead>
+      <tbody>{{range .Aliases}}<tr><td class="mono">{{.Match}}</td><td class="mono">{{join .To ", "}}</td></tr>{{end}}
+      {{if .CatchAllTo}}<tr><td><span class="chip violet plain">catch-all</span></td><td class="mono">{{join .CatchAllTo ", "}}</td></tr>{{end}}</tbody>
+    </table></div>{{else}}<p class="empty">no aliases and no catch-all — unknown addresses bounce</p>{{end}}
+  </section>
+
+  <section class="card pad">
+    <h2>Deliverability policy</h2>
+    {{if .Policy}}<dl class="kv">{{range .Policy}}<dt>{{.K}}</dt><dd class="mono">{{.V}}</dd>{{end}}</dl>{{else}}<p class="empty">nothing beyond what the providers require — SPF is still merged from their includes</p>{{end}}
+  </section>
+
+  <section class="card pad">
+    <h2>Provider settings</h2>
+    {{if .Settings}}<dl class="kv">{{range .Settings}}<dt>{{.K}}</dt><dd class="mono">{{.V}}</dd>{{end}}</dl>{{else}}<p class="empty">provider defaults</p>{{end}}
+  </section>
+</div>
+
+<section class="card pad" style="margin-top:1rem">
+  <h2>Desired DNS records <span class="n">{{with .Desired}}{{if .Err}}failed {{.When}}{{else}}{{len .Records}} records · loaded {{.When}}{{end}}{{else}}not loaded{{end}}</span></h2>
+  {{with .Desired}}
+    {{if .Err}}<p class="empty">{{.Err}}</p>
+    {{else if .Records}}<div class="table-wrap inner" style="margin-bottom:0"><table class="table">
+      <thead><tr><th>Type</th><th>Name</th><th>Content</th><th class="num">Priority</th><th>Kind</th></tr></thead>
+      <tbody>{{range .Records}}<tr><td><span class="chip plain">{{.Type}}</span></td><td class="mono">{{.Name}}</td><td class="mono content">{{.Content}}</td><td class="num">{{if .Priority}}{{.Priority}}{{else}}<span class="faint">—</span>{{end}}</td><td class="faint">{{.Kind}}</td></tr>{{end}}</tbody>
+    </table></div>
+    {{else}}<p class="empty">the providers want no records for this domain</p>{{end}}
+  {{else}}
+    <p class="empty">the records the engine would publish for this domain — asking the providers costs an API call, so they load on request</p>
+  {{end}}
+  <div class="foot">
+    <span>computed by the same code plan and audit use, so the three cannot disagree</span>
+    <form method="post" action="/domains/{{.Card.Name}}/desired"><input type="hidden" name="return_to" value="/domains/{{.Card.Name}}"><button class="btn sm" type="submit">{{if .Desired}}Reload{{else}}Load{{end}} desired records</button></form>
+  </div>
+</section>
+
+{{with .Card.Plan}}{{if .Groups}}
+<section class="card pad" style="margin-top:1rem">
+  <h2>Last plan for this domain <span class="n">{{.Counts.Total}} actions · {{.When}} · <a href="/plan">full plan</a></span></h2>
+  <div class="table-wrap inner" style="margin-bottom:0"><table class="table">
+    <thead><tr><th>Op</th><th>Resource</th><th>Detail</th><th>Provider</th></tr></thead>
+    <tbody>{{range .Groups}}{{range .Actions}}<tr><td><span class="chip {{opChip .Op}}">{{.Op}}</span></td><td>{{.Resource}}</td><td class="content">{{.Detail}}</td><td>{{if .Provider}}<span class="chip plain">{{.Provider}}</span>{{else}}<span class="faint">—</span>{{end}}</td></tr>{{end}}{{end}}</tbody>
+  </table></div>
+</section>
+{{end}}{{end}}
+{{template "shell-close" .}}
+</body>
+</html>

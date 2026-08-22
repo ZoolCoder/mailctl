@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Domains · mailctl</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "shell-open" .}}
+<div class="page-head">
+  <div><h1>Domains</h1><div class="sub">every domain the config declares, with what this process last saw for it</div></div>
+  <div class="actions">
+    <form method="post" action="/plan/run"><input type="hidden" name="return_to" value="/domains"><button class="btn primary" type="submit">Run plan</button></form>
+    <form method="post" action="/audit/run"><input type="hidden" name="return_to" value="/domains"><button class="btn" type="submit">Run audit</button></form>
+  </div>
+</div>
+
+<div class="filters">
+  <div class="search"><input type="search" id="q" placeholder="Search domains, providers…" aria-label="search domains"><kbd>/</kbd></div>
+  <span class="faint" style="font-size:12.5px"><span id="shown">{{len .Domains}}</span> shown</span>
+</div>
+
+<div class="table-wrap">
+  <table class="table" id="domains">
+    <thead><tr><th class="sortable" data-sort="name">Domain</th><th>Zone</th><th>Providers</th><th class="sortable num" data-sort="mailboxes" data-type="num">Mailboxes</th><th class="sortable num" data-sort="aliases" data-type="num">Aliases</th><th>Catch-all</th><th>Last plan</th><th>Last audit</th></tr></thead>
+    <tbody>
+    {{range .Domains}}
+      <tr data-search="{{lower .Name}} {{lower .Zone}} {{join .Providers " "}}" data-name="{{.Name}}" data-mailboxes="{{.Mailboxes}}" data-aliases="{{.Aliases}}">
+        <td><a class="name" href="/domains/{{.Name}}">{{.Name}}</a></td>
+        <td class="mono">{{.Zone}}</td>
+        <td>{{range .Providers}}<span class="chip plain">{{.}}</span> {{end}}</td>
+        <td class="num">{{.Mailboxes}}</td>
+        <td class="num">{{.Aliases}}</td>
+        <td>{{if .CatchAll}}<span class="chip on plain">yes</span>{{else}}<span class="faint">—</span>{{end}}</td>
+        <td>{{if .Plan}}{{if .Plan.Err}}<span class="chip bad">failed</span>{{else if .Plan.Counts.Total}}<span class="chip warn">{{.Plan.Counts.Total}} actions</span>{{else}}<span class="chip on">converged</span>{{end}} <span class="faint">{{.Plan.When}}</span>{{else}}<span class="faint">not run</span>{{end}}</td>
+        <td>{{if .Audit}}{{if .Audit.OK}}<span class="chip on">pass</span>{{else}}<span class="chip bad">{{if .Audit.Err}}error{{else}}{{.Audit.Fail}} failing{{end}}</span>{{end}} <span class="faint">{{.Audit.When}}</span>{{else}}<span class="faint">not run</span>{{end}}</td>
+      </tr>
+    {{else}}
+      <tr><td colspan="8" class="empty">the config declares no domains</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "shell-close" .}}
+{{template "table-tools" .}}
+<script>zcTable({ table: '#domains', search: '#q', shown: '#shown' });</script>
+</body>
+</html>

@@ -4,9 +4,7 @@
   "description": "Antora toolchain for the mailctl documentation site. Not part of the Go module.",
   "scripts": {
     "docs": "antora --fetch antora-playbook.yml",
-    "docs:serve": "npx --yes http-server build/site -p 8080 -c-1",
-    "ui:build": "npm --prefix web run build",
-    "ui:dev": "npm --prefix web run dev"
+    "docs:serve": "npx --yes http-server build/site -p 8080 -c-1"
   },
   "devDependencies": {
     "@antora/cli": "3.1.10",

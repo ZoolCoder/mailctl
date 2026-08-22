@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Audit · mailctl</title>
+{{template "head" .}}
+<style>
+  td.val { overflow-wrap:anywhere; font-family:var(--font-mono); font-size:12.5px; max-width:28rem }
+  .card .table-wrap { margin:0 -1.1rem -1rem; border:0; border-top:1px solid var(--line); border-radius:0 0 var(--radius-lg) var(--radius-lg); box-shadow:none }
+  .card .table-wrap.notes-follow { margin-bottom:.8rem; border-radius:0 }
+  .grp { display:grid; gap:1rem }
+  .notes { margin:0; padding-left:1.1rem; font-size:13px; color:var(--text-soft) }
+  .err { color:var(--coral); font-family:var(--font-mono); font-size:12.5px; overflow-wrap:anywhere }
+</style>
+</head>
+<body>
+{{template "shell-open" .}}
+<div class="page-head">
+  <div><h1>Audit</h1><div class="sub">whether the world can see what the config wants, through a real resolver. {{with .Audit}}Last run {{.At}}{{if .Scope}}, scoped to <strong>{{.Scope}}</strong>{{end}}.{{else}}Not run yet in this session.{{end}}</div></div>
+  <div class="actions">
+    <form method="post" action="/audit/run">
+      <input type="hidden" name="return_to" value="/audit">
+      <label>domain <select name="domain"><option value="">every domain</option>{{range .Domains}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      <button class="btn primary" type="submit">Run audit</button>
+    </form>
+  </div>
+</div>
+
+{{with .Audit}}
+  <section class="stats" aria-label="summary">
+    <div class="stat"><div class="k">Domains passing</div><div class="v {{if .Fail}}coral{{else}}teal{{end}}">{{.Pass}}<span class="faint" style="font-size:16px">/{{add .Pass .Fail}}</span></div></div>
+    <div class="stat"><div class="k">Failing</div><div class="v {{if .Fail}}coral{{else}}teal{{end}}">{{.Fail}}</div><div class="s">a failing check or an error</div></div>
+  </section>
+  <div class="grp">
+  {{range .Domains}}
+    <section class="card pad">
+      <h2><a href="/domains/{{.Domain}}">{{.Domain}}</a> {{if .Err}}<span class="chip bad">error</span>{{else if .OK}}<span class="chip on">pass</span>{{else}}<span class="chip bad">{{.Fail}} failing</span>{{end}} <span class="n">{{if not .Err}}{{.Pass}} of {{add .Pass .Fail}} checks · {{end}}{{.When}}</span></h2>
+      {{if .Err}}<p class="err">{{.Err}}</p>
+      {{else}}
+      <div class="table-wrap {{if .Report.Notes}}notes-follow{{end}}"><table class="table">
+        <thead><tr><th>Check</th><th>Want</th><th>Got</th><th>Result</th></tr></thead>
+        <tbody>{{range .Report.Checks}}<tr><td>{{.Name}}</td><td class="val">{{.Want}}</td><td class="val">{{.Got}}</td><td>{{if .OK}}<span class="chip on">pass</span>{{else}}<span class="chip bad">fail</span>{{end}}</td></tr>{{else}}<tr><td colspan="4" class="empty">no checks for this domain</td></tr>{{end}}</tbody>
+      </table></div>
+      {{if .Report.Notes}}<ul class="notes">{{range .Report.Notes}}<li>{{.}}</li>{{end}}</ul>{{end}}
+      {{end}}
+    </section>
+  {{end}}
+  </div>
+{{else}}
+  <section class="card pad"><p class="empty">Press <strong>Run audit</strong> to resolve every domain's records and compare them with what the config wants. Nothing runs on its own.</p></section>
+{{end}}
+{{template "shell-close" .}}
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Settings · mailctl</title>
+{{template "head" .}}
+<style>
+  .form { display:grid; gap:.9rem; max-width:34rem }
+  .form label { display:grid; gap:.3rem; font-size:13px; color:var(--text-soft); font-weight:500 }
+  .form label .h { font-size:12px; color:var(--text-faint); font-weight:400 }
+  .form input[type=password] { width:100% }
+  .form .row { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center }
+  .kv { display:grid; grid-template-columns:minmax(8rem, 11rem) 1fr; gap:.55rem .8rem; font-size:13.5px; margin:0 }
+  .kv dt { color:var(--text-faint) }
+  .kv dd { margin:0; min-width:0; overflow-wrap:anywhere }
+  .creds { display:grid; gap:.45rem; font-size:13.5px }
+  .creds .row { display:grid; grid-template-columns:1fr auto; gap:.6rem; align-items:center; padding:.3rem 0; border-bottom:1px solid var(--line) }
+  .creds .row:last-child { border-bottom:0 }
+  .creds .row span.for { color:var(--text-faint); font-size:12px; margin-left:.5rem }
+  .how { display:grid; gap:.55rem; font-size:13px; color:var(--text-soft); margin:0; padding-left:1.1rem }
+  .how li::marker { color:var(--text-faint) }
+  .how code, .kv code, .creds code { font-family:var(--font-mono); font-size:12px; color:var(--text); background:var(--glass-2); padding:.05rem .35rem; border-radius:3px }
+</style>
+</head>
+<body>
+{{template "shell-open" .}}
+<div class="page-head">
+  <div><h1>Settings</h1><div class="sub">the password lives in a small file; everything else comes from the command line and the environment</div></div>
+</div>
+
+<div class="grid cols-2">
+  <section class="card pad">
+    <h2>Password</h2>
+    <form class="form" method="post" action="/settings/password" autocomplete="off">
+      <input type="hidden" name="return_to" value="/settings">
+      <label>Current password<input type="password" name="current" autocomplete="current-password" required></label>
+      <label>New password<input type="password" name="password" autocomplete="new-password" minlength="8" required><span class="h">at least 8 characters, and not the current one</span></label>
+      <label>New password again<input type="password" name="confirm" autocomplete="new-password" minlength="8" required></label>
+      <div class="row"><button class="btn primary" type="submit">Change password</button><span class="faint" style="font-size:12.5px">other browsers stay signed in until the server restarts</span></div>
+    </form>
+  </section>
+
+  <section class="card pad">
+    <h2>Provider credentials</h2>
+    <div class="creds">
+      {{range .Credentials}}<div class="row"><span><code>{{.Env}}</code><span class="for">{{.For}}</span></span>{{if .Set}}<span class="chip on">set</span>{{else if .Needed}}<span class="chip bad">missing</span>{{else}}<span class="chip off">not set</span>{{end}}</div>{{end}}
+    </div>
+    <p class="faint" style="font-size:12.5px;margin:.8rem 0 0">Presence only — a value is never read by this page, let alone shown. One marked missing is needed by a configured provider; plan and audit will fail until the environment this process started with has it.</p>
+  </section>
+
+  <section class="card pad">
+    <h2>Where things are</h2>
+    <dl class="kv">
+      <dt>Config</dt><dd><code>{{.ConfigPath}}</code></dd>
+      <dt>Data directory</dt><dd><code>{{.DataDir}}</code> <span class="faint">password hash, mode 0600</span></dd>
+      <dt>Activity log</dt><dd>{{if .ActivityPath}}<code>{{.ActivityPath}}</code>{{else}}<span class="faint">off</span>{{end}}</dd>
+      <dt>Sessions</dt><dd>in memory — a restart signs every browser out</dd>
+    </dl>
+  </section>
+
+  <section class="card pad">
+    <h2>How this works</h2>
+    <ul class="how">
+      <li>The page reads the same <code>mailctl.yaml</code> and the same environment the CLI does. Editing the config or the environment needs a restart of <code>mailctl ui</code>.</li>
+      <li>Plan and audit run only when you press the button, through the same engine as the CLI, so what you see here is what <code>mailctl plan</code> and <code>mailctl audit</code> print.</li>
+      <li>Nothing here applies. <code>mailctl apply</code> in a terminal makes changes, with its confirmation prompts and <code>-prune</code> gates intact.</li>
+      <li>The password and the activity log are the only things written to disk, under <code>$XDG_DATA_HOME/mailctl</code> (<code>~/.local/share/mailctl</code> when unset) or wherever <code>-data</code> points.</li>
+    </ul>
+  </section>
+</div>
+{{template "shell-close" .}}
+</body>
+</html>

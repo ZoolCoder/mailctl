@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Plan · mailctl</title>
+{{template "head" .}}
+<style>
+  td.detail { overflow-wrap:anywhere }
+  .card .table-wrap { margin:0 -1.1rem -1rem; border:0; border-top:1px solid var(--line); border-radius:0 0 var(--radius-lg) var(--radius-lg); box-shadow:none }
+  .grp { display:grid; gap:1rem }
+  .note { font-size:12.5px; color:var(--text-faint); margin:.8rem 0 0 }
+</style>
+</head>
+<body>
+{{template "shell-open" .}}
+<div class="page-head">
+  <div><h1>Plan</h1><div class="sub">what <span class="mono">mailctl apply</span> would change — reads live state, changes nothing. {{with .Plan}}Last run {{.At}}{{if .Scope}}, scoped to <strong>{{.Scope}}</strong>{{end}}.{{else}}Not run yet in this session.{{end}}</div></div>
+  <div class="actions">
+    <form method="post" action="/plan/run">
+      <input type="hidden" name="return_to" value="/plan">
+      <label>domain <select name="domain"><option value="">every domain</option>{{range .Domains}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      <button class="btn primary" type="submit">Run plan</button>
+    </form>
+  </div>
+</div>
+
+{{with .Plan}}
+  {{if .Err}}
+    <section class="card pad"><h2>Plan failed</h2><p class="mono" style="color:var(--coral);overflow-wrap:anywhere">{{.Err}}</p><p class="note">Provider errors are the same ones the CLI prints; none carries a secret.</p></section>
+  {{else}}
+    <section class="stats" aria-label="summary">
+      <div class="stat"><div class="k">Actions</div><div class="v">{{.Counts.Total}}</div><div class="s">across {{len .Groups}} domains</div></div>
+      <div class="stat"><div class="k">Create</div><div class="v {{if .Counts.Create}}teal{{end}}">{{.Counts.Create}}</div></div>
+      <div class="stat"><div class="k">Update</div><div class="v {{if .Counts.Update}}amber{{end}}">{{.Counts.Update}}</div></div>
+      <div class="stat"><div class="k">Delete</div><div class="v {{if .Counts.Delete}}coral{{end}}">{{.Counts.Delete}}</div><div class="s">needs -prune on the CLI</div></div>
+      {{if .Counts.Manual}}<div class="stat"><div class="k">Manual</div><div class="v violet">{{.Counts.Manual}}</div><div class="s">a human completes these</div></div>{{end}}
+    </section>
+    {{if .Groups}}
+    <div class="grp">
+    {{range .Groups}}
+      <section class="card pad">
+        <h2><a href="/domains/{{.Domain}}">{{.Domain}}</a> <span class="n">{{.Counts.Total}} actions</span></h2>
+        <div class="table-wrap"><table class="table">
+          <thead><tr><th>Op</th><th>Resource</th><th>Detail</th><th>Provider</th></tr></thead>
+          <tbody>{{range .Actions}}<tr><td><span class="chip {{opChip .Op}}">{{.Op}}</span></td><td>{{.Resource}}</td><td class="detail">{{.Detail}}</td><td>{{if .Provider}}<span class="chip plain">{{.Provider}}</span>{{else}}<span class="faint">—</span>{{end}}</td></tr>{{end}}</tbody>
+        </table></div>
+      </section>
+    {{end}}
+    </div>
+    {{else}}
+    <section class="card pad"><p class="empty">No changes. The live configuration already matches the config file.</p></section>
+    {{end}}
+    <p class="note">This page does not apply. Run <span class="mono">mailctl apply</span> in a terminal — it re-plans, shows the same list, and asks before deleting anything.</p>
+  {{end}}
+{{else}}
+  <section class="card pad"><p class="empty">Press <strong>Run plan</strong> to read live provider state and list what would change. Nothing runs on its own.</p></section>
+{{end}}
+{{template "shell-close" .}}
+</body>
+</html>

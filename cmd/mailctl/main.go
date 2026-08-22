@@ -114,7 +114,7 @@ Usage:
   mailctl alias rm  <local-part>     [flags]   remove an alias from the config only
   mailctl apppass create <address>   [flags]   create an application credential
   mailctl apppass rm     <address>   [flags]   delete an application credential
-  mailctl ui                         [flags]   run a local read-only web UI
+  mailctl ui                         [flags]   run the local admin page (read-only)
   mailctl version
 
 Flags:
@@ -133,6 +133,8 @@ Flags:
   -to value             alias target address; repeat for several (alias add)
   -name string          app credential label (apppass)
   -addr string          address for the ui to listen on (ui only, default "127.0.0.1:0")
+  -insecure             allow a non-loopback -addr (ui only)
+  -data string          directory for the ui's password and activity log (ui only)
   -no-browser           do not open a browser (ui only)
 
 Environment:
@@ -245,6 +247,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		"print the plan as JSON on stdout instead of the human summary")
 	uiAddr := flags.String("addr", "127.0.0.1:0",
 		"address for the ui to listen on; port 0 lets the kernel choose")
+	uiInsecure := flags.Bool("insecure", false, "allow a non-loopback -addr")
+	uiData := flags.String("data", "", "directory for the ui's password and activity log")
 	uiNoBrowser := flags.Bool("no-browser", false, "do not open a browser")
 	flags.Var(&domains, "domain", "limit to this domain; repeat for several")
 	flags.Var(&aliasTargets, "to", "alias target address; repeat for several")
@@ -419,7 +423,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	if command == "ui" {
-		return serveUI(ctx, runner, *uiAddr, !*uiNoBrowser, stdout)
+		return serveUI(ctx, runner, uiOptions{addr: *uiAddr, insecure: *uiInsecure, dataDir: *uiData,
+			configPath: *configPath, openBrowser: !*uiNoBrowser}, stdout)
 	}
 
 	if command == "audit" {
@@ -605,6 +610,8 @@ var scopedFlags = map[string]map[string]bool{
 	"yes":             {"plan": true, "apply": true},
 	"json":            {"plan": true},
 	"addr":            {"ui": true},
+	"insecure":        {"ui": true},
+	"data":            {"ui": true},
 	"no-browser":      {"ui": true},
 }
 

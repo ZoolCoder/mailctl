@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -18,46 +18,60 @@ import (
 	"github.com/zoolcoder/mailctl/internal/dns"
 	"github.com/zoolcoder/mailctl/internal/engine"
 	"github.com/zoolcoder/mailctl/internal/ui"
+	"github.com/zoolcoder/zcadmin"
+	"github.com/zoolcoder/zcadmin/auth"
 )
 
-// serveUI runs the local UI until the context is cancelled. It is a foreground
-// server on purpose: mailctl has no daemon and no state file, because the live
-// provider APIs are the state. Nothing here writes to disk.
-func serveUI(ctx context.Context, runner *engine.Engine, addr string, openBrowser bool, stdout io.Writer) error {
+// uiOptions is what the ui command takes from its flags.
+type uiOptions struct {
+	addr        string
+	insecure    bool
+	dataDir     string
+	configPath  string
+	openBrowser bool
+}
+
+// serveUI runs the local admin page until the context is cancelled. It is a
+// foreground server on purpose: mailctl has no daemon, because the live
+// provider APIs are the state. The only things it writes are the password
+// hash and the activity log, under the data directory.
+func serveUI(ctx context.Context, runner *engine.Engine, opts uiOptions, stdout io.Writer) error {
+	if err := loopbackOnly(opts.addr, opts.insecure); err != nil {
+		return err
+	}
+	dataDir := opts.dataDir
+	if dataDir == "" {
+		dataDir = filepath.Dir(auth.DefaultFile("mailctl"))
+	}
+
 	// Port 0 lets the kernel choose, so two instances cannot collide and the
 	// port is not guessable by something scanning a fixed one.
-	listener, err := net.Listen("tcp", addr)
+	listener, err := net.Listen("tcp", opts.addr)
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w", addr, err)
+		return fmt.Errorf("listen on %s: %w", opts.addr, err)
 	}
 	defer func() { _ = listener.Close() }()
 
-	token, err := newToken()
-	if err != nil {
-		return err
-	}
-
 	host := listener.Addr().String()
 	handler, err := ui.New(ui.Deps{
-		Token:   token,
-		Host:    host,
-		Planner: runner,
-		Audit: func(ctx context.Context, d config.Domain, desired []dns.Record) audit.Report {
-			return audit.Run(ctx, d, desired, audit.NetResolver(), audit.HTTPFetcher())
-		},
+		Planner:    runner,
+		Audit:      liveAudit,
+		Passwords:  auth.FileStore{Path: filepath.Join(dataDir, "auth.json")},
+		Activity:   &zcadmin.ActivityLog{Path: filepath.Join(dataDir, "activity.jsonl")},
+		ConfigPath: opts.configPath,
+		DataDir:    dataDir,
+		Host:       host,
+		Getenv:     os.Getenv,
+		Now:        time.Now,
 	})
 	if err != nil {
 		return err
 	}
 
-	url := fmt.Sprintf("http://%s/?token=%s", host, token)
-	// The token is in the URL the operator needs, so this line is the one place
-	// it is printed. It authenticates a browser to this process and is not a
-	// provider credential.
-	fmt.Fprintf(stdout, "mailctl ui listening on %s\n", url)
-	fmt.Fprintln(stdout, "press Ctrl-C to stop")
+	url := "http://" + host + "/"
+	fmt.Fprintf(stdout, "mailctl ui on %s — first visit sets the password; Ctrl-C to stop\n", url)
 
-	if openBrowser {
+	if opts.openBrowser {
 		// A browser that will not open is not a reason to fail: the URL is
 		// already printed above.
 		_ = browse(url)
@@ -69,10 +83,8 @@ func serveUI(ctx context.Context, runner *engine.Engine, addr string, openBrowse
 		// Go's net/http special-cases a request whose target is the literal
 		// "*" with method OPTIONS: by default it is answered 200 by an
 		// internal handler before Handler ever sees it, bypassing every
-		// middleware including the auth guard in internal/ui. That would let
-		// an unauthenticated "OPTIONS * HTTP/1.1" through regardless of
-		// token or Host. Disabling it routes that request through the normal
-		// handler chain like anything else.
+		// middleware including the login guard. Disabling it routes that
+		// request through the normal handler chain like anything else.
 		DisableGeneralOptionsHandler: true,
 	}
 	errs := make(chan error, 1)
@@ -91,12 +103,27 @@ func serveUI(ctx context.Context, runner *engine.Engine, addr string, openBrowse
 	}
 }
 
-func newToken() (string, error) {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return "", fmt.Errorf("generate ui token: %w", err)
+// liveAudit is the real auditor: a real resolver and a real HTTP fetcher.
+func liveAudit(ctx context.Context, d config.Domain, desired []dns.Record) audit.Report {
+	return audit.Run(ctx, d, desired, audit.NetResolver(), audit.HTTPFetcher())
+}
+
+// loopbackOnly refuses to expose the page — and the provider credentials
+// behind it — to anything but this machine, unless told twice. The page has
+// a login, but a password on a public port is a weaker promise than "only
+// this machine can reach it", and the operator should say so explicitly.
+func loopbackOnly(addr string, insecure bool) error {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("-addr %q: %w", addr, err)
 	}
-	return base64.RawURLEncoding.EncodeToString(raw), nil
+	if insecure || host == "localhost" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("-addr %q is not loopback; pass -insecure if you mean to expose the page beyond this machine", addr)
 }
 
 func browse(url string) error {

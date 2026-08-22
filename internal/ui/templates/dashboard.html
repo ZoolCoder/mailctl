@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Dashboard · mailctl</title>
+{{template "head" .}}
+<style>
+  .dom { display:grid; gap:.45rem }
+  .dom .head { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap }
+  .dom .head a.name { font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--text) }
+  .dom .head a.name:hover { color:var(--teal); text-decoration:none }
+  .dom .meta { font-size:12.5px; color:var(--text-faint) }
+  .dom .last { display:grid; grid-template-columns:5rem 1fr; gap:.2rem .6rem; font-size:12.5px; margin-top:.3rem }
+  .dom .last dt { color:var(--text-faint) } .dom .last dd { margin:0; display:flex; gap:.35rem; flex-wrap:wrap; align-items:center }
+  .act { display:grid; gap:.3rem; font-size:13px }
+  .act .row { display:grid; grid-template-columns:5rem 5.5rem 1fr; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--line) }
+  .act .row:last-child { border-bottom:0 }
+  .act .when { color:var(--text-faint); white-space:nowrap }
+  .act .d { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-soft) }
+  .act .d b { color:var(--text); font-weight:500 }
+</style>
+</head>
+<body>
+{{template "shell-open" .}}
+<div class="page-head">
+  <div><h1>Dashboard</h1><div class="sub">{{len .Domains}} domains from <span class="mono">{{.ConfigPath}}</span> · plan and audit run only when you press the button</div></div>
+  <div class="actions">
+    <form method="post" action="/plan/run"><input type="hidden" name="return_to" value="/"><button class="btn primary" type="submit">Run plan</button></form>
+    <form method="post" action="/audit/run"><input type="hidden" name="return_to" value="/"><button class="btn" type="submit">Run audit</button></form>
+  </div>
+</div>
+
+<section class="stats" aria-label="summary">
+  <a class="stat" href="/domains" style="color:inherit;text-decoration:none"><div class="k">Domains</div><div class="v">{{len .Domains}}</div><div class="s">{{.Mailboxes}} mailboxes · {{.Aliases}} aliases</div></a>
+  <div class="stat"><div class="k">Providers in use</div><div class="v">{{len .Providers}}</div><div class="s">{{if .Providers}}{{join .Providers ", "}}{{else}}none configured{{end}}</div></div>
+  <a class="stat" href="/plan" style="color:inherit;text-decoration:none"><div class="k">Last plan</div>
+    {{if .Plan}}{{if .Plan.Err}}<div class="v coral">✕</div><div class="s">failed {{.Plan.When}}</div>{{else}}<div class="v {{if .Plan.Counts.Delete}}coral{{else if .Plan.Counts.Total}}amber{{else}}teal{{end}}">{{.Plan.Counts.Total}}</div><div class="s">{{.Plan.Counts.Create}} create · {{.Plan.Counts.Update}} update · {{.Plan.Counts.Delete}} delete{{if .Plan.Counts.Manual}} · {{.Plan.Counts.Manual}} manual{{end}} · {{.Plan.When}}</div>{{end}}
+    {{else}}<div class="v faint">—</div><div class="s">not run yet</div>{{end}}</a>
+  <a class="stat" href="/audit" style="color:inherit;text-decoration:none"><div class="k">Last audit</div>
+    {{if .Audit}}<div class="v {{if .Audit.Fail}}coral{{else}}teal{{end}}">{{.Audit.Pass}}<span class="faint" style="font-size:16px">/{{add .Audit.Pass .Audit.Fail}}</span></div><div class="s">domains passing · {{.Audit.When}}</div>
+    {{else}}<div class="v faint">—</div><div class="s">not run yet</div>{{end}}</a>
+</section>
+
+<div class="grid cols-3">
+  {{range .Domains}}
+  <section class="card pad dom">
+    <div class="head"><a class="name" href="/domains/{{.Name}}">{{.Name}}</a>{{range .Providers}}<span class="chip plain">{{.}}</span>{{end}}</div>
+    <div class="meta">zone {{.Zone}} · {{.Mailboxes}} mailboxes · {{.Aliases}} aliases{{if .CatchAll}} · catch-all{{end}}</div>
+    <dl class="last">
+      <dt>plan</dt><dd>{{if .Plan}}{{if .Plan.Err}}<span class="chip bad">failed</span>{{else if .Plan.Counts.Total}}{{if .Plan.Counts.Create}}<span class="chip on">{{.Plan.Counts.Create}} create</span>{{end}}{{if .Plan.Counts.Update}}<span class="chip warn">{{.Plan.Counts.Update}} update</span>{{end}}{{if .Plan.Counts.Delete}}<span class="chip bad">{{.Plan.Counts.Delete}} delete</span>{{end}}{{if .Plan.Counts.Manual}}<span class="chip violet">{{.Plan.Counts.Manual}} manual</span>{{end}}{{else}}<span class="chip on">converged</span>{{end}} <span class="faint">{{.Plan.When}}</span>{{else}}<span class="faint">not run yet</span>{{end}}</dd>
+      <dt>audit</dt><dd>{{if .Audit}}{{if .Audit.OK}}<span class="chip on">pass</span>{{else if .Audit.Err}}<span class="chip bad">error</span>{{else}}<span class="chip bad">{{.Audit.Fail}} failing</span>{{end}} <span class="faint">{{.Audit.When}}</span>{{else}}<span class="faint">not run yet</span>{{end}}</dd>
+    </dl>
+  </section>
+  {{else}}
+  <section class="card pad"><p class="empty">the config declares no domains</p></section>
+  {{end}}
+</div>
+
+<section class="card pad" style="margin-top:1rem">
+  <h2>Recent activity <span class="n"><a href="/activity">all activity</a></span></h2>
+  {{if .Activity}}<div class="act">{{range .Activity}}<div class="row"><span class="when">{{.When}}</span><span>{{if .OK}}<span class="chip on plain">{{.Kind}}</span>{{else}}<span class="chip bad plain">{{.Kind}}</span>{{end}}</span><span class="d">{{if .Target}}<b>{{.Target}}</b> · {{end}}{{.Detail}}</span></div>{{end}}</div>{{else}}<p class="empty">nothing yet — run a plan or an audit and it lands here</p>{{end}}
+</section>
+{{template "shell-close" .}}
+</body>
+</html>

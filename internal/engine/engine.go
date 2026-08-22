@@ -67,6 +67,13 @@ func (e *Engine) Plan(ctx context.Context) (plan.Plan, error) {
 	return out, nil
 }
 
+// PlanDomain plans one domain on its own, for a caller that wants to spend
+// provider calls on that domain only. It is exactly what Plan does per
+// domain, so a scoped plan and the matching slice of a full one agree.
+func (e *Engine) PlanDomain(ctx context.Context, d config.Domain) (plan.Plan, error) {
+	return e.planDomain(ctx, d)
+}
+
 func (e *Engine) planDomain(ctx context.Context, d config.Domain) (plan.Plan, error) {
 	var out plan.Plan
 

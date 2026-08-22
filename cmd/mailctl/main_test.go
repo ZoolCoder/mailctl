@@ -1072,6 +1072,8 @@ func TestUIFlagsAreRejectedOutsideUI(t *testing.T) {
 	}
 	flagsToReject := []struct{ set, name string }{
 		{"-addr=127.0.0.1:0", "addr"},
+		{"-insecure", "insecure"},
+		{"-data=/tmp/x", "data"},
 		{"-no-browser", "no-browser"},
 	}
 
@@ -1162,12 +1164,12 @@ func waitForHost(t *testing.T, out *syncBuffer) string {
 // finding: Go's net/http answers a raw "OPTIONS * HTTP/1.1" request 200 via
 // an internal handler substituted in before the configured Handler ever
 // runs (see net/http's serverHandler.ServeHTTP), bypassing every middleware
-// including the auth guard in internal/ui — with no token and regardless of
-// Host. The fix is DisableGeneralOptionsHandler: true on the *http.Server
+// including the login guard in internal/ui — with no session and regardless
+// of Host. The fix is DisableGeneralOptionsHandler: true on the *http.Server
 // serveUI builds, which stops that substitution so the request reaches the
-// real, auth-guarded handler chain instead and gets rejected. This test
-// supplies no token at all: it only needs the raw request to stop being
-// answered 200 by something the auth guard never saw.
+// real, guarded handler chain instead and gets rejected. This test supplies
+// no session at all: it only needs the raw request to stop being answered
+// 200 by something the guard never saw.
 func TestUIRejectsRawOptionsStar(t *testing.T) {
 	runner := engine.New(config.Config{}, nil, nil, mail.Deps{}, engine.Options{})
 
@@ -1176,7 +1178,9 @@ func TestUIRejectsRawOptionsStar(t *testing.T) {
 
 	out := &syncBuffer{}
 	done := make(chan error, 1)
-	go func() { done <- serveUI(ctx, runner, "127.0.0.1:0", false, out) }()
+	go func() {
+		done <- serveUI(ctx, runner, uiOptions{addr: "127.0.0.1:0", dataDir: t.TempDir()}, out)
+	}()
 
 	host := waitForHost(t, out)
 
@@ -1193,7 +1197,7 @@ func TestUIRejectsRawOptionsStar(t *testing.T) {
 	_ = conn.Close()
 
 	if strings.Contains(statusLine, " 200 ") {
-		t.Errorf("OPTIONS * was answered 200 with no token and no Origin: %q", statusLine)
+		t.Errorf("OPTIONS * was answered 200 with no session and no Origin: %q", statusLine)
 	}
 
 	cancel()
