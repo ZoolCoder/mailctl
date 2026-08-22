@@ -113,47 +113,74 @@ here and nowhere else.
 
 == ui
 
-Runs a local web UI for browsing what `plan` and `audit` would report, without a
-terminal.
+Runs a local admin page for browsing what `plan` and `audit` would report,
+without a terminal.
 
 [source,console]
 ----
 $ mailctl ui
-mailctl ui listening on http://127.0.0.1:54217/?token=Uu4z...
-press Ctrl-C to stop
+mailctl ui on http://127.0.0.1:54217/ — first visit sets the password; Ctrl-C to stop
 ----
 
-It lists the domains from the config immediately, since that costs no provider
-call. Plan and Audit are separate buttons: each runs the same live check the
-equivalent command would, and only when clicked — the page never spends a
-provider call, or a rate-limit token, on its own.
+The first visit asks you to choose a password; every later visit asks for it.
+Sessions live in memory, so restarting the server signs every browser out.
+Change the password on the Settings page.
 
-This release is read-only. There is no button and no endpoint that applies
-anything; the UI can show you a plan, not execute one. Config authoring and
-`apply` are on
-https://github.com/zoolcoder/mailctl/blob/main/ROADMAP.md[the roadmap].
+The pages:
+
+Dashboard::
+Stat cards — domains, providers in use, the last plan's actions by op, the last
+audit's pass/fail — then a card per domain with its providers and what the last
+plan and audit said about it, and the two buttons that run them.
+
+Domains::
+Every domain the config declares. Each domain's own page shows its mailboxes
+(and where each one's password comes from — never the value), aliases and
+catch-all, deliverability policy and provider settings, and, on request, the DNS
+records the engine wants published for it. Plan and audit can be run for that
+domain alone from here.
+
+Plan::
+Runs the same `plan` the CLI does and shows the action list grouped by domain,
+with an op chip per row — teal `CREATE`, amber `UPDATE`, coral `DELETE`, violet
+`MANUAL` — the provider, and the detail. There is no apply button and no
+endpoint that applies anything: the page shows you a plan, `mailctl apply` in a
+terminal executes one, with its confirmation prompts and `-prune` gates intact.
+
+Audit::
+Runs the same `audit` the CLI does and shows every check per domain with a
+pass or fail chip, plus the notes. A domain whose desired records cannot be
+computed reports its own error without blanking the others.
+
+Activity::
+What the page did — plans, audits, sign-ins — newest first, with a CSV export.
+
+Settings::
+Change the password, see which provider credentials the environment has
+(presence only; a value is never read, let alone shown), and where the config
+file and the data directory are.
+
+Plan and audit are buttons: each runs the same live check the equivalent command
+would, and only when clicked — the page never spends a provider call, or a
+rate-limit token, on its own. The list of domains and what the config declares
+for each costs no provider call and renders immediately.
 
 Credentials come from the environment exactly as they do for every other
 command — the same `CLOUDFLARE_API_TOKEN`, `PURELYMAIL_API_TOKEN` and `MS365_*`
-variables. There is no login form and nothing to configure, because the UI is
-the same binary reading the same environment, not a separate service with its
-own account model.
+variables. The page is the same binary reading the same environment, not a
+separate service with its own account model.
 
-mailctl has no daemon and no state file — the live provider APIs are the state —
-and `ui` does not change that. It is a foreground process: it binds
-`127.0.0.1` on a port the kernel chooses (so two instances never collide and the
-port cannot be guessed by scanning a fixed one), prints a URL containing a
-token generated fresh for that process, and writes nothing to disk. Stopping it
-with Ctrl-C is the only way it stops; there is nothing to clean up afterwards.
+mailctl has no daemon, and `ui` does not change that: it is a foreground
+process that binds `127.0.0.1` on a port the kernel chooses (so two instances
+never collide and the port cannot be guessed by scanning a fixed one) and stops
+with Ctrl-C. The only files it writes are the password hash and the activity
+log, under `$XDG_DATA_HOME/mailctl` (`~/.local/share/mailctl` when unset) or
+wherever `-data` points. A non-loopback `-addr` is refused unless you also pass
+`-insecure`, because a password on a public port is a weaker promise than "only
+this machine can reach it".
 
-The token in the URL is required on every `/api/*` request and lives in memory
-only — it is not written anywhere and does not survive the process exiting. The
-page also strips it from the browser's address bar once it has loaded, so a
-plain reload has no token to send. If that happens, the page says so; reopen the
-URL that `mailctl ui` printed in its terminal, which still carries a valid token
-for as long as that process is running.
-
-`-addr` and `-no-browser` control it; see the flags table below.
+`-addr`, `-insecure`, `-data` and `-no-browser` control it; see the flags table
+below.
 
 == import
 
@@ -234,6 +261,8 @@ mail client therefore cannot use the account password.
 | `-to` | alias add | Alias target address. Repeat for several.
 | `-name` | apppass | Label for the application credential.
 | `-addr` | ui | Address to listen on. Defaults to `127.0.0.1:0`, letting the kernel choose the port.
+| `-insecure` | ui | Allow a non-loopback `-addr`. Refused otherwise.
+| `-data` | ui | Directory for the page's password hash and activity log. Defaults to `$XDG_DATA_HOME/mailctl`.
 | `-no-browser` | ui | Do not open a browser after starting.
 |===
 

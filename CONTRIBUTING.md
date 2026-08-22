@@ -24,27 +24,9 @@ $ go vet ./...      # must be silent
 $ go test ./...     # must pass every package
 ```
 
-## The UI frontend and the committed bundle
+## The linter
 
-The frontend for `mailctl ui` lives in `web/`, with its own `package.json` and
-`package-lock.json` — a separate toolchain from the Antora docs build at the
-repository root. CI installs it and builds it on Node 22.
-
-`internal/ui/dist` is generated from `web/` and must never be hand-edited.
-Rebuild it with:
-
-```console
-$ npm run ui:build
-```
-
-and commit the result alongside whatever change in `web/` caused it, in the
-same pull request. `go install` cannot run npm, so the committed bundle is what
-lets a `go install`-only build of `mailctl` still serve the UI; if the two ever
-drift, the binary ships whatever was last committed regardless of what `web/`
-actually contains. CI rebuilds the bundle and fails if it differs from what is
-committed, so a stale bundle cannot merge.
-
-And the linter, which CI also runs:
+CI also runs golangci-lint:
 
 ```console
 $ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
@@ -52,7 +34,7 @@ $ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./..
 
 Run it that way rather than adding it to `go.mod` as a tool: a tool directive
 would make golangci-lint a direct requirement of the module and break the
-one-dependency rule below. `.golangci.yml` explains every check it disables and
+dependency rule below. `.golangci.yml` explains every check it disables and
 why, including the import boundaries that keep `plan` free of I/O and the
 providers independent of each other.
 
@@ -60,11 +42,17 @@ providers independent of each other.
 
 These are not style preferences. Reviews will hold you to them.
 
-**Exactly one non-stdlib dependency.** `gopkg.in/yaml.v3`, and that is all. If a
-change seems to need another, that is worth discussing in an issue first — the
-answer is usually that a few dozen lines of stdlib will do. There is no HTTP
-client library, no OAuth library and no provider SDK; the API clients are hand
-written for this reason.
+**Exactly two non-stdlib dependencies.** `gopkg.in/yaml.v3` for the config, and
+`github.com/zoolcoder/zcadmin` — the shared shell, login and design tokens the
+local admin page is built on, itself pure stdlib. If a change seems to need
+another, that is worth discussing in an issue first — the answer is usually that
+a few dozen lines of stdlib will do. There is no HTTP client library, no OAuth
+library and no provider SDK; the API clients are hand written for this reason.
+
+**The UI holds no logic.** `internal/ui` renders what the engine answers and
+reaches providers only through it; `.golangci.yml` enforces the import boundary.
+Its pages are Go templates on the zcadmin shell — no JavaScript framework, no
+bundle to build or commit.
 
 **`Plan` performs no I/O.** Providers read live state in `Actual`, then compute
 actions with no further calls. Each returned action carries a closure that does

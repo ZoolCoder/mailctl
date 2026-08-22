@@ -76,9 +76,10 @@ splits mailbox, alias and routing concerns across separate APIs.
 
 ### The local UI: config authoring, then apply
 
-`mailctl ui` ships in this release as a read-only viewer: it lists domains from
-the config and runs `plan` and `audit` against live providers only when asked,
-through the same JSON projection `plan -json` uses. Two phases remain, described
+`mailctl ui` ships in this release as a read-only viewer: server-rendered pages
+on the shared ZoolCoder admin shell that list domains from the config and run
+`plan` and `audit` against live providers only when asked, through the same
+engine the CLI uses. Two phases remain, described
 in full in
 [`docs/superpowers/specs/2026-08-11-mailctl-ui-design.md`](docs/superpowers/specs/2026-08-11-mailctl-ui-design.md):
 

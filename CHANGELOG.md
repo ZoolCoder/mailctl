@@ -10,11 +10,18 @@ under **Breaking**.
 
 ### Added
 
-- `mailctl ui`: a local, read-only web UI for browsing what `plan` and `audit`
-  would report. It runs as a foreground server on `127.0.0.1` with a
-  kernel-chosen port and a per-process auth token, reads credentials from the
-  environment exactly like every other command, and writes nothing to disk.
-  Config authoring and `apply` are not part of this release.
+- `mailctl ui`: a local, read-only admin page for browsing what `plan` and
+  `audit` would report. Server-rendered Go pages on the shared ZoolCoder admin
+  shell (`github.com/zoolcoder/zcadmin`): a dashboard, a page per domain with
+  its declared mailboxes, aliases, routing, deliverability policy and desired
+  DNS records, the plan grouped by domain, the audit with per-check pass/fail,
+  an activity log, and Settings. It runs as a foreground server on `127.0.0.1`
+  with a kernel-chosen port, reads credentials from the environment exactly
+  like every other command, and runs a plan or an audit only when you press the
+  button. One password guards it: the first visit sets it, and the hash and the
+  activity log are the only files it writes, under `$XDG_DATA_HOME/mailctl` or
+  `-data`. A non-loopback `-addr` is refused without `-insecure`. Config
+  authoring and `apply` are not part of this release.
 - `plan -json`: prints the action list as JSON (`schemaVersion` 1) instead of
   the human summary, for gating a CI pipeline on whether anything would change.
   The local UI renders through the same projection, so a script and the UI can

@@ -5,8 +5,9 @@ DNS records, mailboxes, aliases, routing and deliverability policy for every
 domain you own; `mailctl` works out what has to change, shows you, and then
 changes it.
 
-It is a single Go binary with one non-stdlib dependency. No daemon, no state
-file, no lock — the live provider APIs are the state.
+It is a single Go binary with two non-stdlib dependencies: a YAML parser, and
+the shared shell its local admin page is built on. No daemon, no state file, no
+lock — the live provider APIs are the state.
 
 ```console
 $ mailctl plan
@@ -102,9 +103,11 @@ report it exactly once — when the mailbox is genuinely created, not when it is
 planned. `-secrets-out` writes those to a `0600` file and refuses a path that
 already exists.
 
-`mailctl ui` opens the same plan and audit in a browser, read-only in this
-release, on a loopback port with a per-process token — no separate login, no
-files written.
+`mailctl ui` opens a local admin page on a loopback port: a dashboard of your
+domains, each domain's declared mailboxes, aliases and policy, and the same plan
+and audit the CLI prints, each run only when you press the button. One password
+guards it — the first visit sets it — and nothing on it applies; the page shows
+you a plan, the terminal executes one.
 
 See the [quickstart](https://zoolcoder.github.io/mailctl/mailctl/quickstart.html)
 for the full walkthrough.
