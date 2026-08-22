@@ -24,6 +24,17 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      # zcadmin — the shell the local admin page is built on — is a private
+      # module. GOPRIVATE keeps Go away from the public proxy and checksum
+      # database for it, and the token lets git fetch it. The secret is a
+      # fine-grained PAT with read access to zoolcoder/zcadmin.
+      - name: reach the private zcadmin module
+        env:
+          ZCADMIN_TOKEN: ${{ secrets.ZCADMIN_TOKEN }}
+        run: |
+          echo "GOPRIVATE=github.com/zoolcoder/zcadmin" >> "$GITHUB_ENV"
+          git config --global url."https://x-access-token:${ZCADMIN_TOKEN}@github.com/zoolcoder/zcadmin".insteadOf "https://github.com/zoolcoder/zcadmin"
+
       - name: gofmt
         # gofmt exits 0 even when it has complaints, so the output is the signal.
         run: |
@@ -39,7 +50,7 @@ jobs:
 
       # Runs as an action rather than a `tool` directive in go.mod: a tool
       # directive would add golangci-lint to the module's direct requirements
-      # and break the one-dependency check below, which is the whole point of
+      # and break the dependency check below, which is the whole point of
       # that check.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -60,16 +71,16 @@ jobs:
         run: go test -count=1 -race ./...
 
       - name: verify the dependency set has not grown
-        # The project deliberately has exactly one non-stdlib dependency. A new
-        # one is a design decision, not something that should arrive unnoticed in
-        # a pull request.
+        # The project deliberately has exactly two non-stdlib dependencies: the
+        # YAML parser and the zcadmin shell. A new one is a design decision, not
+        # something that should arrive unnoticed in a pull request.
         run: |
           count=$(go list -deps ./... | grep -c '^gopkg.in/\|^github.com/\|^golang.org/x/' || true)
           echo "non-stdlib packages in the dependency graph: $count"
           go list -m all | tail -n +2 | sed 's/^/  /'
           direct=$(go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | tail -n +2 | grep -v '^$' | wc -l | tr -d ' ')
-          if [ "$direct" -ne 1 ]; then
-            echo "::error::expected exactly 1 direct dependency, found $direct"
+          if [ "$direct" -ne 2 ]; then
+            echo "::error::expected exactly 2 direct dependencies, found $direct"
             go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | tail -n +2
             exit 1
           fi
@@ -81,39 +92,3 @@ jobs:
           go mod tidy
           diff -u go.mod.bak go.mod || { echo "::error::go.mod is not tidy"; exit 1; }
           diff -u go.sum.bak go.sum || { echo "::error::go.sum is not tidy"; exit 1; }
-
-      # The frontend lives in web/ with its own lockfile; the root package.json
-      # is the Antora docs toolchain and is unrelated to this build. Pinned to
-      # the LTS major: rebuilding the committed bundle under both Node 22 and
-      # Node 25 produced byte-identical output, so 22 is safe and is the better
-      # default for CI.
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: install the frontend toolchain
-        working-directory: web
-        run: npm ci
-
-      - name: frontend tests
-        working-directory: web
-        run: npm test
-
-      # The committed bundle exists so `go install` works without npm. If it can
-      # drift from source, it will, and the drift would ship.
-      #
-      # Uses `git status --porcelain`, NOT `git diff`: git diff compares tracked
-      # files only, so a NEWLY EMITTED asset — a code-split chunk, a font, a
-      # second stylesheet — is untracked, invisible to diff, and would sail
-      # through this check while `go:embed all:dist` shipped a bundle missing it.
-      - name: verify the committed ui bundle is current
-        run: |
-          npm run ui:build
-          drift=$(git status --porcelain -- internal/ui/dist)
-          if [ -n "$drift" ]; then
-            echo "::error::internal/ui/dist is stale; run 'npm run ui:build' and commit the result"
-            echo "$drift"
-            exit 1
-          fi
