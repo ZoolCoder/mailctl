@@ -34,7 +34,7 @@ nfpms:
     vendor: ZoolCoder
     homepage: https://zoolcoder.github.io/mailctl/
     maintainer: ZoolCoder <abdallah.coder@gmail.com>
-    description: Declarative email for custom domains: DNS, mailboxes, deliverability; CLI, MCP server and agent skills
+    description: "Declarative email for custom domains: DNS, mailboxes, deliverability; CLI, MCP server and agent skills"
     license: MIT
     section: utils
     bindir: /usr/bin
@@ -64,18 +64,25 @@ release:
   prerelease: auto
 
 # The cask lives in this repo: brew tap zoolcoder/mailctl https://github.com/zoolcoder/mailctl
-# brew tap clones the default branch, develop, so the cask is committed there.
+# brew tap clones the default branch, develop. develop takes changes only
+# through pull requests, so the cask arrives as one.
 homebrew_casks:
   - name: mailctl
     repository:
       owner: zoolcoder
       name: mailctl
-      branch: develop
+      branch: "chore/cask-{{ .Version }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: zoolcoder
+          name: mailctl
+          branch: develop
     directory: Casks
     commit_author:
       name: goreleaser
       email: goreleaser@users.noreply.github.com
     commit_msg_template: "chore(brew): cask for {{ .Tag }}"
     homepage: https://zoolcoder.github.io/mailctl/
-    description: Declarative email for custom domains: DNS, mailboxes, deliverability; CLI, MCP server and agent skills
+    description: "Declarative email for custom domains: DNS, mailboxes, deliverability; CLI, MCP server and agent skills"
     license: MIT

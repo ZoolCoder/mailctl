@@ -31,8 +31,10 @@ Semantic versioning and git flow, described in
 pull requests. A release is a `release/X.Y.Z` branch from `develop` that
 updates `CHANGELOG.md`, merged into `main`, tagged `vX.Y.Z` there, which
 triggers the release workflow, and merged back into `develop`. The release
-workflow commits the Homebrew cask to `develop`, the default branch, which is
-the one `brew tap` clones. Hotfixes
+workflow opens a pull request that adds the Homebrew cask to `develop`, the
+default branch, which is the one `brew tap` clones. CI does not start on a
+pull request the workflow opens, so push an empty commit to its branch to
+run the required check before merging it. Hotfixes
 branch from `main` as `hotfix/X.Y.Z` and merge back into both. Only the
 maintainer can push a `v*` tag. Breaking
 changes to the config format, the CLI flags or the JSON output bump the
