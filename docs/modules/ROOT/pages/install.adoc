@@ -1,0 +1,85 @@
+= Install
+:description: Install mailctl with Homebrew, go install or from source, and check the setup.
+
+mailctl is a single binary with one non-stdlib dependency. There is nothing to
+configure at install time.
+
+== Requirements
+
+* Go {go-version} or newer to build.
+* A Cloudflare API token with DNS edit permission on the zones you manage.
+* A token for whichever mail provider each domain uses.
+
+== Install
+
+Pick one way. Each ends with `mailctl version` printing the version you
+installed.
+
+[tabs%sync]
+======
+Homebrew::
++
+On macOS or Linux:
++
+[source,console]
+----
+$ brew tap zoolcoder/mailctl https://github.com/zoolcoder/mailctl
+$ brew install --cask mailctl
+$ mailctl version
+----
++
+The cask installs the release binary with its SHA-256 pinned, so an altered
+release fails to install rather than installing quietly.
+
+Binary::
++
+No toolchain needed. Binaries for Linux, macOS and Windows on `amd64` and
+`arm64`, with SHA-256 checksums, are attached to every
+https://github.com/zoolcoder/mailctl/releases/latest[release]:
++
+[source,console]
+----
+$ tar -xzf mailctl_v0.1.0_linux_amd64.tar.gz
+$ sha256sum -c checksums.txt --ignore-missing
+$ ./mailctl version
+----
+
+go install::
++
+With a Go toolchain:
++
+[source,console]
+----
+$ go install github.com/zoolcoder/mailctl/cmd/mailctl@latest
+$ mailctl version
+----
+
+Source::
++
+[source,console]
+----
+$ git clone https://github.com/zoolcoder/mailctl
+$ cd mailctl
+$ go build ./cmd/mailctl
+$ ./mailctl version
+----
+======
+
+== Verify the build
+
+The test suite runs entirely offline — every provider API is faked with
+`httptest`, so no token is needed and nothing external is contacted.
+
+[source,console]
+----
+$ go test ./...
+$ gofmt -l .
+$ go vet ./...
+----
+
+A clean run means every package passes, `gofmt` prints nothing and `vet` is
+silent.
+
+== Next
+
+Create a config file and run a plan: xref:quickstart.adoc[Quickstart].

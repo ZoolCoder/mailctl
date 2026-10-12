@@ -1,0 +1,28 @@
+# The Arabic translation of the mailctl guide. lang turns the UI right to
+# left and sends the PDF through Chrome; the captions translate the labels
+# Asciidoctor writes. Pages keep the English file names, so the language menu
+# can link each page to its translation.
+name: mailctl-ar
+title: mailctl
+version: ~
+nav:
+  - modules/ROOT/nav.adoc
+asciidoc:
+  attributes:
+    lang: ar
+    page-zc-pdf: mailctl-ar/_exports/index.pdf
+    page-zc-tagline: التوثيق
+    page-zc-license: مرخّص بموجب MIT
+    appendix-caption: ملحق
+    caution-caption: تنبيه
+    example-caption: مثال
+    figure-caption: شكل
+    important-caption: مهم
+    last-update-label: آخر تحديث
+    note-caption: ملاحظة
+    table-caption: جدول
+    tip-caption: نصيحة
+    toc-title: المحتويات
+    untitled-label: بلا عنوان
+    version-label: الإصدار
+    warning-caption: تحذير

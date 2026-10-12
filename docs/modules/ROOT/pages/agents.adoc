@@ -1,0 +1,101 @@
+= Agents and MCP
+:description: Drive mailctl from Claude Code or any MCP client, without giving the agent a credential.
+
+mailctl works with an AI agent without handing it your providers. The binary
+stays the engine: plan, apply, audit and import are deterministic Go that cost
+no tokens. The agent drives the binary through JSON and explains the result. It
+never calls a provider API itself and never sees a credential.
+
+== Install for Claude Code
+
+The repository is its own plugin marketplace:
+
+[source,console]
+----
+/plugin marketplace add zoolcoder/mailctl
+/plugin install mailctl --marketplace zoolcoder/mailctl
+----
+
+The plugin brings six skills, five slash commands, a read-only reviewer agent,
+a guard hook and the MCP server registration. The MCP server runs the
+`mailctl` binary, so install that first (see xref:install.adoc[Install]) and
+run `mailctl doctor` until every check passes.
+
+== Skills and commands
+
+[cols="1,3"]
+|===
+| Skill | What it does
+
+| `mailctl-setup` | Install mailctl, store tokens in the Keychain, run `doctor` until it passes.
+| `mail-setup` | Onboard a domain: import, write the config, plan, apply after a yes, audit.
+| `mail-audit` | Run the audit and explain each failing check with the exact record to change.
+| `mailbox-admin` | Add or remove a mailbox, alias or app credential. Always plan before apply.
+| `deliverability-fix` | Fix SPF, DKIM, DMARC, MTA-STS and BIMI failures through the config.
+| `provider-migrate` | Move a domain between providers with a staged plan.
+|===
+
+The commands `/mail-setup`, `/mail-plan`, `/mail-audit`, `/mail-add` and
+`/mail-doctor` each load their skill. The `deliverability-reviewer` agent reads
+a plan or an audit and flags risky changes, such as an MX swap, `p=reject` or a
+prune, before you apply.
+
+== MCP server
+
+`mailctl mcp` serves these tools on stdin and stdout. Any MCP host can use them;
+the plugin registers the server for Claude Code.
+
+[cols="1,1,3"]
+|===
+| Tool | Kind | Notes
+
+| `doctor` | read | Install health. Names where each credential comes from, never its value.
+| `mail_domains` | read | The resolved config, as `domains -json`.
+| `mail_plan` | read | The plan as JSON, saved under `$XDG_STATE_HOME/mailctl/plans/`. Returns a `plan_id`.
+| `mail_audit` | read | Live DNS and deliverability per domain, as `audit -json`.
+| `mail_import` | read | A config block from live provider state.
+| `mail_apply` | write | Applies the plan with that `plan_id`. Refuses on drift and on any deletion.
+| `mailbox_add`, `alias_add` | write | Edit the config only.
+| `mailbox_rm`, `alias_rm` | write | Edit the config only. The objects stay at the provider.
+| `apppass_create` | write | The credential goes to the Keychain; the reply names where.
+|===
+
+Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`,
+`idempotentHint`), so a host can ask before each write. The skills are also
+served as MCP prompts.
+
+=== What an agent cannot do
+
+* **Delete.** `mail_plan` can show a prune or a DNS replacement, so you can
+  read it. `mail_apply` refuses any plan that deletes something, and no tool
+  takes `-yes`. The error names the terminal command, and you run it yourself.
+* **Apply something you did not see.** `mail_apply` takes a `plan_id`, not
+  flags, and re-plans before it writes. If live state changed since the plan,
+  it refuses.
+* **Read a credential.** A generated credential goes to the Keychain, or a
+  `0600` file under `$XDG_STATE_HOME/mailctl` when there is no Keychain. The
+  reply names where it went, never the value.
+
+The plugin's hook adds one more guard for agents that shell out instead: a Bash
+call that runs `mailctl apply` with a prune or replace flag, with `-yes`, or
+without `-plan` makes Claude Code ask you first.
+
+== Other agents
+
+`adapters/` holds the same rules for other agents: `codex/AGENTS.md`,
+`cloud/AGENTS.md`, `cursor/mailctl.mdc`, `gemini/GEMINI.md` and
+`copilot/copilot-instructions.md`. Copy the one for your agent into your
+project and register `mailctl mcp` as an MCP server.
+
+== Untrusted text
+
+DNS TXT records, provider error bodies and imported configs are data, not
+instructions. Every skill says so, and the eval suite checks that an
+instruction planted in a TXT record is reported, never followed.
+
+== Evals
+
+`make evals` runs the suite in `evals/` with `claude plugin eval`. It checks
+that a plan is shown before apply, no credential reaches a reply, no prune is
+added unasked, a planted instruction is ignored, and an audit failure is
+explained with the exact record.

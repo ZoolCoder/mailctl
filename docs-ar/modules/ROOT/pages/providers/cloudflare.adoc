@@ -1,0 +1,74 @@
+= توجيه Cloudflare وإرساله
+:description: Cloudflare Email Routing لإعادة توجيه البريد الوارد، وEmail Sending للبريد الصادر.
+
+مزوّدان، كلاهما مبني على Cloudflare Email. يحلّان نصفين مختلفين من المشكلة ويمكن
+الجمع بينهما.
+
+[#cfrouting-inbound]
+== cfrouting: الوارد
+
+يعيد Cloudflare Email Routing توجيه البريد الواصل إلى نطاقك إلى عناوين في مكان آخر.
+لا يستضيف أي صناديق بريد: لا شيء يُسجَّل الدخول إليه.
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: cfrouting
+    aliases:
+      - match: info
+        to: [somewhere@gmail.com]
+    catchAll:
+      to: [somewhere@gmail.com]
+----
+
+ولأنه لا يستضيف شيئًا، فوجود كتلة `mailboxes` على نطاق `cfrouting` خطأ تحقق، لا قسم
+يُتجاهل بصمت.
+
+``cfrouting`` مزوّد وارد: ينشر سجلات MX، فلا يمكنه مشاركة نطاق مع `purelymail` أو
+``ms365``.
+
+[#destination-verification]
+=== التحقق من الوجهة
+
+يجب أن يتحقق مالك هدف إعادة التوجيه منه قبل أن يسلّم Cloudflare إليه، إذ يرسل
+Cloudflare إلى الوجهة رابط تأكيد. يبلّغ mailctl عن الوجهة غير المتحقق منها في مخرجات
+`plan` بدل الإبلاغ بالنجاح عن قاعدة تُسقط البريد بصمت.
+
+[#cfsending-outbound]
+== cfsending: الصادر
+
+يعطي Cloudflare Email Sending نطاقًا فرعيًا السجلات اللازمة للإرسال عبر Cloudflare.
+وهو للصادر فقط، فيقترن بأي مزوّد وارد:
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: [purelymail, cfsending]
+----
+
+هنا يملك Purelymail البريد الوارد وصناديق البريد، بينما يضيف `cfsending` سجلات الإرسال
+الصادر. وتُدمج متطلبات SPF للمزوّدين في سجل TXT واحد، كما يتطلب RFC 7208.
+
+[#which-to-choose]
+== أيهما تختار
+
+[cols="1,3"]
+|===
+| تريد صناديق بريد حقيقية | `purelymail` أو ``ms365``. لا ``cfrouting``.
+| تريد إعادة توجيه بضعة عناوين إلى صندوق قائم | ``cfrouting``. لا صندوق تدفع ثمنه أو تصونه.
+| تريد أن يرسل تطبيق باسم نطاقك | ``cfsending``، إلى جانب ما يتولى الوارد.
+|===
+
+[#dns-ownership]
+== ملكية DNS
+
+كل سجل ينشره mailctl في Cloudflare سجلٌّ سيحميه أيضًا، ويحذفه مع ``-prune``. السجلات
+التي لا يعرفها تُترك كما هي، والسجل المتعارض الذي لم ينشئه يُفشل الخطة بدل أن يُكتب
+فوقه بصمت. مرّر `-replace-dns` لتجاوز ذلك، بعد أن تقرأ ما سيُستبدل.
+
+تُنشر سجلات CNAME دائمًا بوضع DNS فقط، دون وكيل أبدًا. فسجل CNAME عبر الوكيل سيمرّر
+اكتشاف البريد عبر وكيل HTTP في Cloudflare ويعطّله.

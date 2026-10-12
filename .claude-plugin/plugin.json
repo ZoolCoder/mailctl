@@ -1,0 +1,23 @@
+{
+  "name": "mailctl",
+  "version": "0.1.0",
+  "description": "Declarative email for custom domains: plan and apply DNS, mailboxes, aliases and deliverability (SPF, DKIM, DMARC, MTA-STS) across Purelymail, Microsoft 365 and Cloudflare, audit live mail health, with an MCP server; mailctl doctor checks the install.",
+  "author": {
+    "name": "Abdallah Emad (ZoolCoder)",
+    "url": "https://github.com/zoolcoder"
+  },
+  "homepage": "https://github.com/zoolcoder/mailctl",
+  "repository": "https://github.com/zoolcoder/mailctl",
+  "license": "MIT",
+  "keywords": [
+    "email",
+    "dns",
+    "deliverability",
+    "dmarc",
+    "spf",
+    "dkim",
+    "infrastructure-as-code",
+    "agent-skills",
+    "mcp"
+  ]
+}

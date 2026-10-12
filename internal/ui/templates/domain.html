@@ -1,0 +1,99 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div>
+    <div class="crumb"><a href="/domains">{{$.T "Domains"}}</a> / {{.Card.Name}}</div>
+    <h1 class="pg">{{.Card.Name}}</h1>
+    <p class="sub">{{$.T "zone"}} <code>{{.Card.Zone}}</code> {{template "providers" .Card.Providers}} <span class="health {{.Card.Health}}">{{.Card.HealthText}}</span></p>
+  </div>
+  <div class="acts">{{template "run" run $ "plan" .ReturnTo .Card.Name true}}{{template "run" run $ "audit" .ReturnTo .Card.Name false}}</div>
+</div>
+{{if not .Scoped}}<p class="small muted">{{$.T "Run plan here plans every domain and shows this one's share."}}</p>{{end}}
+
+<nav class="tabs" aria-label="{{$.T "On this page"}}">
+  <a href="#mailboxes">{{$.T "Mailboxes"}} <span class="n">{{len .Mailboxes}}</span></a>
+  <a href="#aliases">{{$.T "Aliases"}} <span class="n">{{len .Aliases}}</span></a>
+  <a href="#policy">{{$.T "Deliverability"}}</a>
+  <a href="#dns">{{$.T "DNS records"}}</a>
+  <a href="#plan">{{$.T "Plan"}}</a>
+  <a href="#audit">{{$.T "Audit"}}</a>
+</nav>
+
+<section class="kpis" aria-label="{{$.T "Summary"}}">
+  <div class="kpi"><span class="ic">{{icon "mail"}}</span><span class="lbl">{{$.T "Mailboxes"}}</span><b>{{.Card.Mailboxes}}</b></div>
+  <div class="kpi"><span class="ic">{{icon "share"}}</span><span class="lbl">{{$.T "Aliases"}}</span><b>{{.Card.Aliases}}</b><span class="hint">{{if .CatchAllTo}}{{$.T "plus a catch-all"}}{{else}}{{$.T "no catch-all"}}{{end}}</span></div>
+  <div class="kpi"><span class="ic">{{icon "list"}}</span><span class="lbl">{{$.T "Last plan"}}</span>{{with .Card.Plan}}{{if .Err}}<b class="bad">✕</b><span class="hint">{{$.T "failed %s" (ago $ .When)}}</span>{{else}}<b class="{{if .Counts.Delete}}bad{{else if .Counts.Total}}warn{{else}}ok{{end}}">{{.Counts.Total}}</b><span class="hint">{{$.T "%d create · %d update · %d delete" .Counts.Create .Counts.Update .Counts.Delete}} · {{ago $ .When}}</span>{{if .Counts.Total}}<span class="viz"><span class="dial xs">{{donut "ok warn bad man" (ints .Counts.Create .Counts.Update .Counts.Delete .Counts.Manual)}}</span></span>{{end}}{{end}}{{else}}<b class="dim">—</b><span class="hint">{{$.T "not run yet"}}</span>{{end}}</div>
+  <div class="kpi"><span class="ic">{{icon "shield"}}</span><span class="lbl">{{$.T "Last audit"}}</span>{{with .Card.Audit}}{{if .Err}}<b class="bad">✕</b><span class="hint">{{$.T "error %s" (ago $ .When)}}</span>{{else}}<b class="{{if .Fail}}bad{{else}}ok{{end}}">{{.Pass}}<small>/{{add .Pass .Fail}}</small></b><span class="hint">{{$.T "checks passing"}} · {{ago $ .When}}</span><span class="viz"><span class="ring sm {{if .Fail}}bad{{else}}ok{{end}}">{{ring .Pass (add .Pass .Fail)}}</span></span>{{end}}{{else}}<b class="dim">—</b><span class="hint">{{$.T "not run yet"}}</span>{{end}}</div>
+</section>
+
+<section class="panel" id="mailboxes">
+  <div class="panel-h"><h2>{{$.T "Mailboxes"}}</h2><span class="n">{{len .Mailboxes}}</span></div>
+  {{if .Mailboxes}}<div class="tw"><table>
+    <thead><tr><th>{{$.T "Address"}}</th><th>{{$.T "Password from"}}</th><th>{{$.T "Display name"}}</th><th class="num">{{$.T "Recovery"}}</th></tr></thead>
+    <tbody>{{range .Mailboxes}}<tr><td class="mono">{{.Address}}</td><td class="mono">{{.Credential}}</td><td>{{if .DisplayName}}{{.DisplayName}}{{else}}<span class="muted">—</span>{{end}}</td><td class="num">{{.Recovery}}</td></tr>{{end}}</tbody>
+  </table></div>{{else}}<p class="empty">{{$.T "no mailboxes declared"}}</p>{{end}}
+</section>
+
+<section class="panel" id="aliases">
+  <div class="panel-h"><h2>{{$.T "Aliases & routing"}}</h2><span class="n">{{len .Aliases}}{{if .CatchAllTo}} + {{$.T "catch-all"}}{{end}}</span></div>
+  {{if or .Aliases .CatchAllTo}}<div class="tw"><table>
+    <thead><tr><th>{{$.T "Match"}}</th><th>{{$.T "Delivers to"}}</th></tr></thead>
+    <tbody>{{range .Aliases}}<tr><td class="mono">{{.Match}}</td><td class="val">{{join .To ", "}}</td></tr>{{end}}
+    {{if .CatchAllTo}}<tr><td><span class="chip violet">{{$.T "catch-all"}}</span></td><td class="val">{{join .CatchAllTo ", "}}</td></tr>{{end}}</tbody>
+  </table></div>{{else}}<p class="empty">{{$.T "no aliases and no catch-all — unknown addresses bounce"}}</p>{{end}}
+</section>
+
+<div class="grid-2">
+  <section class="panel" id="policy">
+    <div class="panel-h"><h2>{{$.T "Deliverability policy"}}</h2></div>
+    {{if .Policy}}<dl class="kv">{{range .Policy}}<dt>{{.K}}</dt><dd class="mono">{{.V}}</dd>{{end}}</dl>{{else}}<p class="empty">{{$.T "nothing beyond what the providers require — SPF is still merged from their includes"}}</p>{{end}}
+  </section>
+
+  <section class="panel">
+    <div class="panel-h"><h2>{{$.T "Provider settings"}}</h2></div>
+    {{if .Settings}}<dl class="kv">{{range .Settings}}<dt>{{.K}}</dt><dd class="mono">{{.V}}</dd>{{end}}</dl>{{else}}<p class="empty">{{$.T "provider defaults"}}</p>{{end}}
+  </section>
+</div>
+
+<section class="panel" id="dns">
+  <div class="panel-h"><h2>{{$.T "Desired DNS records"}}</h2><span class="n">{{with .Desired}}{{if .Err}}{{$.T "failed %s" (ago $ .When)}}{{else}}{{plural $ (len .Records) "record"}} · {{ago $ .When}}{{end}}{{else}}{{$.T "not loaded"}}{{end}}</span></div>
+  {{with .Desired}}
+    {{if .Err}}<p class="err">{{.Err}}</p>
+    {{else if .Records}}<div class="tw"><table>
+      <thead><tr><th>{{$.T "Type"}}</th><th>{{$.T "Name"}}</th><th>{{$.T "Content"}}</th><th class="num">{{$.T "Priority"}}</th><th>{{$.T "Kind"}}</th></tr></thead>
+      <tbody>{{range .Records}}<tr><td><span class="chip">{{.Type}}</span></td><td class="mono">{{.Name}}</td><td class="val">{{.Content}}</td><td class="num">{{if .Priority}}{{.Priority}}{{else}}<span class="muted">—</span>{{end}}</td><td class="muted">{{.Kind}}</td></tr>{{end}}</tbody>
+    </table></div>
+    {{else}}<p class="empty">{{$.T "the providers want no records for this domain"}}</p>{{end}}
+  {{else}}
+    <p class="empty">{{$.T "the records mailctl would publish for this domain — asking the providers costs an API call, so they load on request"}}</p>
+  {{end}}
+  <div class="panel-f">
+    <span>{{$.T "computed by the same code plan and audit use, so the three cannot disagree"}}</span>
+    <form method="post" action="/domains/{{.Card.Name}}/desired" data-busy="{{$.T "Loading…"}}"><input type="hidden" name="return_to" value="/domains/{{.Card.Name}}#dns"><button class="btn mini" type="submit">{{icon "refresh"}}{{if .Desired}}{{$.T "Reload desired records"}}{{else}}{{$.T "Load desired records"}}{{end}}</button></form>
+  </div>
+</section>
+
+<section class="panel" id="plan">
+  <div class="panel-h"><h2>{{$.T "Plan for this domain"}}</h2>{{with .Card.Plan}}<span class="n">{{plural $ .Counts.Total "action"}} · {{ago $ .When}}</span>{{end}}<a class="act" href="/plan">{{$.T "Full plan"}}</a></div>
+  {{with .Card.Plan}}
+    {{if .Err}}<p class="err">{{.Err}}</p>
+    {{else if .Groups}}<div class="tw"><table>
+      <thead><tr><th>{{$.T "Op"}}</th><th>{{$.T "Resource"}}</th><th>{{$.T "Detail"}}</th><th>{{$.T "Provider"}}</th></tr></thead>
+      <tbody>{{range .Groups}}{{range .Actions}}<tr><td><span class="chip {{opChip .Op}}">{{$.T (print .Op)}}</span></td><td>{{.Resource}}</td><td class="wrap">{{.Detail}}</td><td>{{if .Provider}}{{template "providers" (list .Provider)}}{{else}}<span class="muted">—</span>{{end}}</td></tr>{{end}}{{end}}</tbody>
+    </table></div>
+    <div class="panel-f"><span>{{$.T "Apply from a terminal:"}}</span></div>
+    <div class="cmd"><code id="apply-cmd">{{$.Apply}}</code><button class="btn mini" type="button" data-copy="#apply-cmd">{{icon "copy"}}<span data-label>{{$.T "Copy"}}</span></button></div>
+    {{else}}<p><span class="chip on">{{$.T "converged"}}</span> <span class="small muted">{{$.T "no changes for this domain"}}</span></p>{{end}}
+  {{else}}<p class="empty">{{$.T "no plan has covered this domain yet"}}</p>{{end}}
+</section>
+
+<section class="panel" id="audit">
+  <div class="panel-h"><h2>{{$.T "Audit for this domain"}}</h2>{{with .Card.Audit}}<span class="n">{{ago $ .When}}</span>{{end}}<a class="act" href="/audit">{{$.T "Full audit"}}</a></div>
+  {{with .Card.Audit}}
+    {{if .Err}}<p class="err">{{.Err}}</p>
+    {{else}}<div class="tw"><table>
+      <thead><tr><th>{{$.T "Check"}}</th><th>{{$.T "Status"}}</th><th>{{$.T "Want"}}</th><th>{{$.T "Got"}}</th></tr></thead>
+      <tbody>{{range .Report.Checks}}<tr><td>{{.Name}}</td><td>{{if .OK}}<span class="chip on">{{$.T "pass"}}</span>{{else}}<span class="chip bad">{{$.T "fail"}}</span>{{end}}</td><td class="val">{{.Want}}</td><td class="val">{{.Got}}</td></tr>{{end}}</tbody>
+    </table></div>{{end}}
+  {{else}}<p class="empty">{{$.T "no audit has covered this domain yet"}}</p>{{end}}
+</section>
+{{template "ts-bottom" .}}

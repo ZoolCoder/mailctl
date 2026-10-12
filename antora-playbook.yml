@@ -1,0 +1,70 @@
+# Antora playbook for the mailctl documentation site.
+#
+# Build locally with:
+#   npm run docs
+# then open build/site/index.html. `npm run docs:local` builds against a
+# checkout of zc-supplemental-ui next to this repo instead of the release.
+#
+# The content source is this working tree rather than a remote URL, so a local
+# build documents what is checked out right now instead of what was last pushed.
+antora:
+  extensions:
+    # Builds a client-side lunr index at generation time; the UI shows its
+    # search field when the extension is loaded.
+    - require: '@antora/lunr-extension'
+      index_latest_only: true
+      # One index per language, each with its own stemmer.
+      languages: [en, ar]
+    # Assembles every page into one PDF, configured by antora-assembler.yml.
+    - require: '@antora/pdf-extension'
+    # From zc-supplemental-ui: "Last updated" from git, a Markdown copy of
+    # each page plus llms.txt, and a link-preview card per page.
+    - zc-supplemental-ui/extensions/last-updated
+    - zc-supplemental-ui/extensions/llms
+    - zc-supplemental-ui/extensions/og-image
+
+site:
+  title: mailctl
+  # Required for canonical URLs, og:url and sitemap generation.
+  url: https://zoolcoder.github.io/mailctl
+  start_page: mailctl::index.adoc
+  robots: allow
+
+content:
+  sources:
+    - url: .
+      # The English guide and its Arabic translation, one component each.
+      start_paths: [docs, docs-ar]
+      branches: HEAD
+      edit_url: 'https://github.com/zoolcoder/mailctl/edit/develop/{path}'
+
+ui:
+  bundle:
+    # The ZoolCoder docs UI, the same design as the admin page. Pinned to a
+    # release so a change to the bundle reaches this site only by a bump here.
+    url: https://github.com/zoolcoder/zc-supplemental-ui/releases/download/v0.2.0/ui-bundle.zip
+
+asciidoc:
+  extensions:
+    - '@asciidoctor/tabs'
+  attributes:
+    experimental: ''
+    idprefix: ''
+    idseparator: '-'
+    tabsize: 2
+    # Referenced from pages so a version bump happens in one place.
+    go-version: '1.26'
+    source-highlighter: highlight.js
+    # Read by the UI bundle: header buttons, footer and link previews.
+    page-zc-repo: https://github.com/zoolcoder/mailctl
+    page-zc-pdf: mailctl/_exports/index.pdf
+    page-zc-tagline: Documentation
+    page-zc-site: https://zoolcoder.com/
+    page-zc-site-name: zoolcoder.com
+    page-zc-owner: ZoolCoder
+    page-zc-license: MIT licensed
+    # The language menu: each language and the component that holds it.
+    page-zc-langs: en=mailctl ar=mailctl-ar
+
+output:
+  dir: ./build/site

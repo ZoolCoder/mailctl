@@ -1,0 +1,121 @@
+= How it works
+:description: What happens inside mailctl between reading the config and applying a plan.
+
+Every command runs the same pipeline. Knowing it explains most of mailctl's
+behaviour: why the first apply stops partway, why a rerun is always safe, and
+why some settings are refused instead of accepted.
+
+== The pipeline
+
+[.diagram]
+image::pipeline.svg["Load, read, desire, diff and order, then plan prints the actions and apply runs them",opts=inline]
+
+. *Load.* The YAML file is parsed strictly. An unknown key is an error with
+its line number, and cross-field rules run before any network call, so a
+mistake in the file fails fast instead of halfway through an apply.
+. *Read.* For each domain mailctl reads the Cloudflare zone and asks each mail
+provider for its live state: domains, mailboxes, aliases, catch-all.
+. *Desire.* Each provider says which DNS records it needs. Those lists are
+unioned, and the deliverability layer folds in DMARC, MTA-STS, TLS-RPT and
+BIMI, and merges every provider's SPF requirement into one record.
+. *Diff.* Desired state is compared with live state. Anything missing becomes
+a `CREATE`, anything different an `UPDATE`, and with `-prune` anything the
+config no longer names becomes a `DELETE`.
+. *Order.* The actions are put in the one order that works (see below).
+. *Print or execute.* `plan` stops here and prints. `apply` runs the same
+list, one line per action, and stops at the first error.
+
+No state is stored between runs. The config file and the providers are the
+only sources of truth, so there is nothing to drift, lock or repair.
+
+== Why the order matters
+
+Actions within a domain run in a fixed order:
+
+[cols="1,3"]
+|===
+| Step | Why it comes there
+
+| MTA-STS Worker
+| The policy must be served before the `_mta-sts` TXT record announces its
+new id. Otherwise a receiver fetches the old policy under the new id and keeps
+it.
+
+| DNS records
+| Mail providers check DNS when a domain is added. Purelymail rejects a
+domain until its ownership TXT record resolves.
+
+| Mail provider objects
+| Each provider orders its own actions, starting with the domain, because
+mailboxes and aliases cannot exist before it.
+|===
+
+That is why a first `apply` usually stops with "DNS ownership checks did not
+pass": the records were published a moment ago and have not propagated. Wait,
+run `apply` again, and the completed actions are skipped.
+
+== How DNS conflicts are judged
+
+Each record mailctl wants has a role: MX, SPF, DKIM, DMARC, ownership,
+MTA-STS, TLS-RPT or BIMI. The role decides which existing records count as a
+conflict.
+
+* An existing record that already matches is left alone. Names compare
+case-insensitively and without the trailing dot.
+* An SPF, MTA-STS, TLS-RPT or BIMI record conflicts only with a TXT record
+of the same version tag. Unrelated TXT records on the apex are untouched.
+* DKIM and DMARC live on names mailctl owns outright, so anything else there
+is a conflict.
+* Ownership TXT records never conflict: several providers can each have one.
+
+A conflict stops the plan with an error that names the record. Pass
+`-replace-dns` to replace it instead. Nothing is overwritten by default.
+
+Two providers on one domain can propose different content for a record that
+must be unique, such as DMARC. That is a config error, reported by both `plan`
+and `audit`, rather than a race over which one wins.
+
+== Plan and apply agree
+
+`apply` with no arguments plans again and executes the result, so it always
+acts on current state. `apply -plan saved.json` executes a plan saved earlier
+with `plan -json`, and refuses if live state changed since it was made. Use the
+second form when a person reviews the plan and something else applies it.
+
+Every action is idempotent. A rerun after a partial apply does only what is
+left. A domain that is fully converged reports `No changes.`
+
+== Manual actions
+
+Some changes cannot be made through a provider's API. They appear in the plan
+as `MANUAL` with the place to make them, for example the Microsoft 365 admin
+centre. `apply` never executes them, and a plan whose only remaining actions
+are manual counts as converged.
+
+== Audit is different
+
+`plan` asks the providers what they hold. `audit` asks the internet: it
+resolves the published records through a real resolver and fetches the
+MTA-STS policy over HTTPS. A provider API reports what you asked for, and
+`audit` reports what a receiving server will see. Run it after DNS has had time
+to propagate.
+
+== Code map
+
+For contributors, each step lives in one package under `internal/`:
+
+[cols="1,3"]
+|===
+| Package | Role
+
+| `config` | YAML schema, strict loading and validation
+| `engine` | Turns config and live state into an ordered plan, and runs it
+| `plan` | The action list, its ordering and its rendering
+| `dns`, `dns/cloudflare` | Record model, conflict rules, and the Cloudflare zone client
+| `deliver` | SPF merge, DMARC, MTA-STS, TLS-RPT and BIMI records
+| `mail/*` | One package per mail provider, behind a single interface
+| `worker` | Uploads the MTA-STS policy Worker
+| `audit` | Checks published DNS through a resolver
+| `secret`, `keychain` | Credential resolution and the macOS Keychain
+| `cli`, `ui`, `planjson` | The command line, the admin page and the JSON contract
+|===

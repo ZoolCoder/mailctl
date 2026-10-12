@@ -1,0 +1,200 @@
+= الإعداد
+:description: ملف YAML الخاص بـ mailctl: مكانه، وكل مفاتيحه، والفحوص التي تجري عند تحميله.
+
+ملف YAML واحد يصف كل النطاقات. تُرفض المفاتيح المجهولة مع اسم الحقل ورقم سطره بدل
+تجاهلها، فيصير الخطأ المطبعي خطأً واضحًا بدل إعداد لا يفعل شيئًا بصمت.
+
+[#where-the-file-is]
+== أين الملف
+
+يستخدم mailctl أول ما يكون مضبوطًا أو موجودًا من التالي:
+
+. `-config <path>`
+. `$MAILCTL_CONFIG`
+. `./mailctl.yaml` في مجلد العمل
+. `$XDG_CONFIG_HOME/mailctl/mailctl.yaml` (أي `~/.config/mailctl/mailctl.yaml`
+  حين لا يكون `XDG_CONFIG_HOME` مضبوطًا)
+
+المسار الخاص بالمستخدم هو مكان الإعداد الحقيقي. فهو يُبقي نطاقاتك خارج أي نسخة
+مستودع قد تنشرها، ويسمح بتشغيل `mailctl` وخادم MCP من أي مجلد. يطبع `mailctl doctor`
+الملف الذي وجده وسبب اختياره.
+
+[#top-level]
+== المستوى الأعلى
+
+[source,yaml]
+----
+version: 1                          # required, must be 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+  baseUrl: https://api.cloudflare.com/client/v4   # optional
+  ttl: 1                            # 1 means automatic
+
+purelymail:
+  baseUrl: https://purelymail.com   # optional
+
+domains: [...]
+----
+
+يمكن لأي قيمة نصية أن تشير إلى متغير بيئة بـ ``+${NAME}+``. المتغير غير المضبوط
+خطأ.
+
+[#a-domain]
+== النطاق
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    zoneName: example.com     # defaults to name; set when the Cloudflare zone differs
+    mail: {...}
+    mailboxes: [...]
+    aliases: [...]
+    catchAll: {...}
+    deliverability: {...}
+----
+
+[#mail]
+== mail
+
+[source,yaml]
+----
+mail:
+  provider: purelymail        # a name, or a list of names
+  settings: {...}             # purelymail only
+  ms365: {...}                # ms365 only
+----
+
+يقبل `provider` اسمًا واحدًا أو قائمة. وينقسم المزوّدون إلى مجموعتين:
+
+الوارد:: ``purelymail``، ``cfrouting``، ``ms365``. كل منها ينشر سجلات MX ويملك البريد
+الوارد. **يمكن للنطاق أن يذكر واحدًا منها على الأكثر**، لأن مزوّدَين يتنافسان على
+سجل MX نفسه لا يمكن أن يفوزا معًا.
+
+الصادر فقط:: ``cfsending``. يقترن بأي مزوّد وارد.
+
+المزوّد الذي يوجّه البريد ولا يستضيفه، أي `cfrouting` و``cfsending``، لا يمكن أن تكون
+له كتلة ``mailboxes``. التصريح بها خطأ.
+
+[#mail-settings-purelymail]
+=== mail.settings (purelymail)
+
+[source,yaml]
+----
+mail:
+  provider: purelymail
+  settings:
+    allowAccountReset: true
+    symbolicSubaddressing: false
+----
+
+يستحق `symbolicSubaddressing` الفهم قبل أن تختار العناوين. ما دام مفعّلًا، يرفض
+Purelymail *أي* رمز في اسم المستخدم، لأن `first.last` سيُفهم على أنه المستخدم
+`first` بالوسم ``last``. لذا لا يمكن استخدام `first.last@example.com` إلا حين تكون
+قيمته ``false``، على حساب خسارة عناوين ``+tag`` في النطاق كله.
+
+[#mail-ms365]
+=== mail.ms365
+
+راجع xref:providers/ms365.adoc[Microsoft 365].
+
+[#mailboxes]
+== mailboxes
+
+[source,yaml]
+----
+mailboxes:
+  - address: contact@example.com
+    passwordEnv: CONTACT_PASSWORD       # omit to generate one
+    displayName: Contact                # ms365 only
+    license: BUSINESS_STANDARD          # ms365 only, overrides the domain default
+    enablePasswordReset: true           # purelymail only
+    enableSearchIndexing: true          # purelymail only
+    requireTwoFactorAuthentication: false   # purelymail only
+    sendWelcomeEmail: false             # purelymail only
+    recovery:                           # purelymail only
+      - type: email
+        target: recovery@example.net
+        description: personal
+        allowMfaReset: false
+----
+
+تُرفض المفاتيح الخاصة بمزوّد ما على المزوّد الخطأ بدل تجاهلها. فتجاهل
+`requireTwoFactorAuthentication` سيبدو كمصادقة ثنائية مفروضة لا وجود لها.
+
+[#aliases]
+== aliases
+
+[source,yaml]
+----
+aliases:
+  - match: info                     # exact match on the local part
+    to: [contact@example.com]
+  - match: sales*                   # trailing * matches any local part starting with sales
+    to: [contact@example.com]
+----
+
+غير متاحة لدى كل المزوّدين. يرفض `ms365` هذه الكتلة، لأن Microsoft Graph يعرض الحقل
+الأساسي للقراءة فقط.
+
+[#catchall]
+== catchAll
+
+[source,yaml]
+----
+catchAll:
+  to: [contact@example.com]
+----
+
+حذف `catchAll` كليًا يعني **اترك ما هو موجود كما هو**، لا "احذفه". القراءتان لا
+تتميزان في YAML، وإحداهما تُضيّع البريد بصمت، فيأخذ mailctl القراءة الآمنة. لإزالة
+الالتقاط الشامل، أزله لدى المزوّد.
+
+[#deliverability]
+== deliverability
+
+[source,yaml]
+----
+deliverability:
+  spfIncludes:
+    - include:servers.mailgun.org
+
+  dmarc:
+    policy: quarantine        # none | quarantine | reject
+    subdomainPolicy: reject
+    pct: 100                  # omit to default to 100
+    rua: mailto:dmarc@example.com
+
+  tlsRpt: mailto:tls-reports@example.com
+
+  bimi:
+    logo: https://example.com/logo.svg
+
+  mtaSts:
+    mode: testing             # none | testing | enforce
+    maxAge: 604800            # optional
+    deploy: true              # upload and bind the policy-serving Worker
+----
+
+راجع xref:deliverability.adoc[قابلية التسليم] لمعرفة عمل كل سجل وترتيب تفعيلها.
+
+مدخلات `spfIncludes` آليات مفردة. بلا مسافات، وبلا محدِّد ``all``، وبلا معدِّل
+``redirect=``: يستنتج mailctl أشد محدِّد بنفسه، ويرفض كل ما قد يتجاوز السجل الذي
+يبنيه.
+
+[#validation]
+== التحقق
+
+يبلّغ التحقق عن كل المشكلات دفعة واحدة بدل التوقف عند أولها، فالإعداد الذي فيه
+ثلاثة أخطاء يحتاج إلى تشغيل واحد لإصلاحه لا ثلاثة. تذكر الأخطاء النطاق والحقل وما
+يجب فعله.
+
+الفحوص التي تلتقط أكثر الأخطاء شيوعًا:
+
+* مزوّد وارد واحد بالضبط لكل نطاق
+* لا `mailboxes` على مزوّد لا يستطيع استضافتها
+* لا مفتاح خاص بمزوّد على المزوّد الخطأ
+* إشارة ``+${ENV}+`` إلى متغير غير مضبوط
+* مدخل في `spfIncludes` قد يتجاوز محدِّد السجل
+* مفتاح مجهول في أي مكان، مع رقم سطره

@@ -1,0 +1,35 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div><h1 class="pg">{{$.T "Audit"}}</h1><p class="sub">{{$.T "whether the world can see what the config wants, through a real resolver."}} {{with .Audit}}{{if .Scope}}{{$.TH "Last run %s, scoped to %s." (stamp .When) (strong .Scope)}}{{else}}{{$.T "Last run %s." (stamp .When)}}{{end}}{{else}}{{$.T "Not run yet in this session."}}{{end}}</p></div>
+  <div class="acts">
+    <form class="inline" method="post" action="/audit/run" data-busy="{{$.T "Auditing…"}}">
+      <input type="hidden" name="return_to" value="/audit">
+      <label>{{$.T "Domain"}} <select name="domain"><option value="">{{$.T "every domain"}}</option>{{range .Domains}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      <button class="btn primary" type="submit">{{icon "shield"}}{{$.T "Run audit"}}</button>
+    </form>
+  </div>
+</div>
+
+{{with .Audit}}
+  <section class="kpis" aria-label="{{$.T "Summary"}}">
+    <div class="kpi"><span class="ic">{{icon "check"}}</span><span class="lbl">{{$.T "Domains passing"}}</span><b class="{{if .Fail}}bad{{else}}ok{{end}}">{{.Pass}}<small>/{{add .Pass .Fail}}</small></b><span class="hint">{{$.T "every check matches"}}</span><span class="viz"><span class="ring sm {{if .Fail}}bad{{else}}ok{{end}}">{{ring .Pass (add .Pass .Fail)}}</span></span></div>
+    <div class="kpi"><span class="ic">{{icon "shield"}}</span><span class="lbl">{{$.T "Failing"}}</span><b class="{{if .Fail}}bad{{else}}ok{{end}}">{{.Fail}}</b><span class="hint">{{$.T "a failing check or an error"}}</span></div>
+  </section>
+  {{if .Fail}}<section class="callout info"><div><b>{{$.T "How to fix"}}</b>{{$.T "The Want column is the value the config expects. Run a plan, apply it, then audit again once DNS has spread."}}</div></section>{{end}}
+  {{range .Domains}}
+    <section class="panel">
+      <div class="panel-h"><h2><a href="/domains/{{.Domain}}">{{.Domain}}</a> {{if .Err}}<span class="chip bad">{{$.T "error"}}</span>{{else if .OK}}<span class="chip on">{{$.T "pass"}}</span>{{else}}<span class="chip bad">{{$.T "%d failing" .Fail}}</span>{{end}}</h2><span class="n">{{if not .Err}}{{$.T "%d of %d checks" .Pass (add .Pass .Fail)}} · {{end}}{{ago $ .When}}</span></div>
+      {{if .Err}}<p class="err">{{.Err}}</p>
+      {{else}}
+      <div class="tw"><table>
+        <thead><tr><th>{{$.T "Check"}}</th><th>{{$.T "Result"}}</th><th>{{$.T "Want"}}</th><th>{{$.T "Got"}}</th></tr></thead>
+        <tbody>{{range .Report.Checks}}<tr><td>{{.Name}}</td><td>{{if .OK}}<span class="chip on">{{$.T "pass"}}</span>{{else}}<span class="chip bad">{{$.T "fail"}}</span>{{end}}</td><td class="val">{{.Want}}</td><td class="val">{{.Got}}</td></tr>{{else}}<tr><td colspan="4" class="empty">{{$.T "no checks for this domain"}}</td></tr>{{end}}</tbody>
+      </table></div>
+      {{if .Report.Notes}}<ul class="notes">{{range .Report.Notes}}<li>{{.}}</li>{{end}}</ul>{{end}}
+      {{end}}
+    </section>
+  {{end}}
+{{else}}
+  <section class="panel"><p class="empty">{{$.TH "Press %s to resolve every domain's records and compare them with what the config wants. Nothing runs on its own." (strong ($.T "Run audit"))}}</p></section>
+{{end}}
+{{template "ts-bottom" .}}

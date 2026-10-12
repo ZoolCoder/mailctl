@@ -1,0 +1,817 @@
+// Package cli is the mailctl command line: the contract between people,
+// agents (skills, MCP) and the reconciliation engine.
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/zoolcoder/mailctl/internal/audit"
+	"github.com/zoolcoder/mailctl/internal/cfapi"
+	"github.com/zoolcoder/mailctl/internal/config"
+	"github.com/zoolcoder/mailctl/internal/configedit"
+	cfdns "github.com/zoolcoder/mailctl/internal/dns/cloudflare"
+	"github.com/zoolcoder/mailctl/internal/engine"
+	"github.com/zoolcoder/mailctl/internal/importer"
+	"github.com/zoolcoder/mailctl/internal/mail"
+	"github.com/zoolcoder/mailctl/internal/mail/ms365"
+	"github.com/zoolcoder/mailctl/internal/mail/purelymail"
+	"github.com/zoolcoder/mailctl/internal/planjson"
+	"github.com/zoolcoder/mailctl/internal/secret"
+	"github.com/zoolcoder/mailctl/internal/worker"
+
+	// Providers register themselves at init time. This is the only place that
+	// names a provider package other than purelymail and ms365, which mailbox
+	// passwd and apppass also call directly.
+	_ "github.com/zoolcoder/mailctl/internal/mail/cfrouting"
+	_ "github.com/zoolcoder/mailctl/internal/mail/cfsending"
+)
+
+// Version is overridden at build time with
+// -ldflags "-X github.com/zoolcoder/mailctl/internal/cli.Version=...".
+// When it isn't, resolveVersion falls back to the module version Go itself
+// embeds, so a "go install ...@v0.1.0" binary still reports something useful.
+var Version = "dev"
+
+// resolveVersion picks what "mailctl version" prints. ldflagsVersion, if set
+// to anything other than the "dev" default, wins outright: a release
+// pipeline may want to stamp an exact string. Otherwise mainVersion is used
+// when it's a real version; "(devel)" and "" (a working-tree build, or a Go
+// version too old to embed build info) keep the existing "dev" wording
+// rather than surfacing "(devel)" to a user. For a working-tree build, a
+// truncated revision is appended, since that's what someone can actually
+// hand back in a bug report; "modified" marks an unclean tree.
+func resolveVersion(ldflagsVersion, mainVersion, revision string, modified bool) string {
+	if ldflagsVersion != "dev" {
+		return ldflagsVersion
+	}
+
+	v := mainVersion
+	if v == "" || v == "(devel)" {
+		v = "dev"
+	}
+
+	if v != "dev" {
+		return v
+	}
+
+	if len(revision) > 12 {
+		revision = revision[:12]
+	}
+	switch {
+	case revision != "" && modified:
+		return fmt.Sprintf("%s (%s, modified)", v, revision)
+	case revision != "":
+		return fmt.Sprintf("%s (%s)", v, revision)
+	default:
+		return v
+	}
+}
+
+// buildVersion reads the module version Go embeds via runtime/debug and
+// resolves it against Version, the possibly ldflags-overridden default.
+// ReadBuildInfo returns (info, ok) and can't be faked in a test, so this is
+// the single untestable line; resolveVersion carries the actual logic.
+func buildVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return resolveVersion(Version, "", "", false)
+	}
+
+	var revision string
+	var modified bool
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
+		}
+	}
+
+	return resolveVersion(Version, info.Main.Version, revision, modified)
+}
+
+const usage = `mailctl reconciles email configuration from a YAML file.
+
+Usage:
+  mailctl plan                       [flags]   show what would change (default)
+  mailctl apply                      [flags]   make the changes
+  mailctl audit                      [flags]   check DNS and deliverability status
+  mailctl import                     [flags]   print a config block from live provider state
+  mailctl mailbox add <address>      [flags]   add a mailbox to the config, then apply
+  mailctl mailbox rm  <address>                remove a mailbox from the config only
+  mailctl mailbox passwd <address>   [flags]   change a mailbox's credential at the provider
+  mailctl alias add <local-part>     [flags]   add an alias to the config, then apply
+  mailctl alias rm  <local-part>     [flags]   remove an alias from the config only
+  mailctl apppass create <address>   [flags]   create an application credential
+  mailctl apppass rm     <address>   [flags]   delete an application credential
+  mailctl domains                    [flags]   show the resolved config per domain, no secrets
+  mailctl doctor                     [flags]   check config, credentials and connectivity
+  mailctl mcp                        [flags]   serve the MCP tools on stdin/stdout
+  mailctl ui                         [flags]   run the local admin page (read-only)
+  mailctl version
+
+Flags:
+  -config string        config file; default $MAILCTL_CONFIG, ./mailctl.yaml, then
+                        $XDG_CONFIG_HOME/mailctl/mailctl.yaml (~/.config/mailctl/mailctl.yaml)
+  -domain value         limit to this domain; repeat for several
+  -json                 print JSON on stdout (plan, audit, domains, doctor)
+  -plan string          apply exactly this saved plan -json output; refuse if live state drifted (apply only)
+  -edit-only            edit the config without applying it (mailbox add, alias add)
+  -prune                delete provider-side objects absent from the config
+  -prune-mailboxes      allow -prune to delete mailboxes; deleting a mailbox destroys its mail
+  -replace-dns          replace conflicting MX, SPF, DKIM, DMARC records
+  -yes                  skip the deletion confirmation prompt
+  -secrets-out string   write generated credentials to this file (mode 0600) instead of the
+                        Keychain (macOS) or stderr (elsewhere)
+  -provider string      provider to import from (import only)
+  -zone string          Cloudflare zone name (import only, defaults to the domain)
+  -password-env string  environment variable holding the credential (mailbox add|passwd)
+  -alias-domain string  domain the alias belongs to (alias add|rm)
+  -to value             alias target address; repeat for several (alias add)
+  -name string          app credential label (apppass)
+  -addr string          address for the ui to listen on (ui only, default "127.0.0.1:0")
+  -data string          directory for the ui's activity log (ui only)
+  -no-browser           do not open a browser (ui only)
+
+Environment:
+  CLOUDFLARE_API_TOKEN   required
+  PURELYMAIL_API_TOKEN   required when a domain uses the purelymail provider
+  MS365_TENANT_ID        required when a domain uses the ms365 provider
+  MS365_CLIENT_ID        required when a domain uses the ms365 provider
+  MS365_CLIENT_SECRET    required when a domain uses the ms365 provider
+
+Every variable, including a mailbox's passwordEnv, is read from the environment
+first, then from the macOS Keychain: service "mailctl", account = the variable's
+name. Store one with: security add-generic-password -s mailctl -a NAME -w
+`
+
+// domainList collects a repeatable -domain flag.
+type domainList []string
+
+func (d *domainList) String() string { return strings.Join(*d, ",") }
+
+func (d *domainList) Set(value string) error {
+	for _, part := range strings.Split(value, ",") {
+		part = strings.ToLower(strings.TrimSpace(part))
+		if part != "" {
+			*d = append(*d, part)
+		}
+	}
+	return nil
+}
+
+// Run is the process entry point. cmd/mailctl only maps its error to an exit
+// code.
+func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	return run(args, stdin, stdout, stderr)
+}
+
+// run is the only seam a generated credential could reach a writer through,
+// so stdin/stdout/stderr are parameters rather than direct os.* references:
+// tests can assert a credential lands on stderr and never on stdout.
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	// -h and --help must be handled before the prefix guard below: that guard
+	// only promotes a non-dash token to command, so with either of these as
+	// args[0] command would stay "plan" and args would keep "-h"/"--help" as
+	// an unrecognized flag, which flag.Parse rejects with exit 1 instead of
+	// the zero-exit, stdout usage every other help spelling gets.
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprint(stdout, usage)
+		return nil
+	}
+
+	command := "plan"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		command, args = args[0], args[1:]
+	}
+
+	// mailbox, alias, and apppass take a verb and a target address/match as
+	// bare positional arguments before any flags (e.g. "mailbox add
+	// sales@a.com -password-env SALES_PW"). flag.Parse stops at the first
+	// non-flag token, so these two tokens must be shifted off here, the same
+	// way command was, or -password-env/-alias-domain/-to/-name would never
+	// be recognized as flags at all. Each shift is guarded the same way the
+	// command shift above is: a token starting with "-" is left for
+	// flags.Parse rather than consumed as the verb or target, so "mailbox add
+	// -password-env X" reports the usage error instead of treating
+	// "-password-env" as the address and "X" as a stray argument.
+	var verb, target string
+	switch command {
+	case "mailbox", "alias", "apppass":
+		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			verb, args = shift(args)
+		}
+		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			target, args = shift(args)
+		}
+		target = strings.ToLower(target)
+	}
+
+	switch command {
+	case "version":
+		fmt.Fprintln(stdout, "mailctl", buildVersion())
+		return nil
+	case "help":
+		fmt.Fprint(stdout, usage)
+		return nil
+	case "plan", "apply", "audit", "import", "mailbox", "alias", "apppass", "ui", "domains", "doctor", "mcp":
+	default:
+		fmt.Fprint(stderr, usage)
+		return fmt.Errorf("unknown subcommand %q", command)
+	}
+
+	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+	// Output is suppressed here and written explicitly below: flag.Parse
+	// calls Usage synchronously, before it returns, so a subcommand-scoped
+	// -h/--help/help would otherwise land its usage text on stderr before
+	// this function ever sees flag.ErrHelp and gets a chance to redirect it
+	// to stdout.
+	flags.SetOutput(io.Discard)
+	flags.Usage = func() {}
+
+	var domains, aliasTargets domainList
+	configPath := flags.String("config", "", "path to the YAML configuration")
+	prune := flags.Bool("prune", false, "delete provider-side objects absent from the config")
+	pruneMailboxes := flags.Bool("prune-mailboxes", false,
+		"allow -prune to delete mailboxes; deleting a mailbox destroys its mail")
+	replaceDNS := flags.Bool("replace-dns", false, "replace conflicting MX, SPF, DKIM, DMARC records")
+	assumeYes := flags.Bool("yes", false, "skip the deletion confirmation prompt")
+	secretsOut := flags.String("secrets-out", "", "write generated credentials to this file")
+	importProvider := flags.String("provider", "", "provider to import from (import only)")
+	importZone := flags.String("zone", "", "Cloudflare zone name (import only, defaults to the domain)")
+	passwordEnv := flags.String("password-env", "", "environment variable holding the credential (mailbox add|passwd)")
+	aliasDomain := flags.String("alias-domain", "", "domain the alias belongs to (alias add|rm)")
+	appPassName := flags.String("name", "", "app credential label (apppass)")
+	planJSON := flags.Bool("json", false,
+		"print JSON on stdout instead of the human summary")
+	savedPlan := flags.String("plan", "", "apply exactly this saved plan; refuse if live state drifted")
+	editOnly := flags.Bool("edit-only", false, "edit the config without applying it")
+	uiAddr := flags.String("addr", "127.0.0.1:0",
+		"address for the ui to listen on; port 0 lets the kernel choose")
+	uiData := flags.String("data", "", "directory for the ui's activity log")
+	uiNoBrowser := flags.Bool("no-browser", false, "do not open a browser")
+	flags.Var(&domains, "domain", "limit to this domain; repeat for several")
+	flags.Var(&aliasTargets, "to", "alias target address; repeat for several")
+
+	if err := flags.Parse(args); err != nil {
+		// A subcommand-scoped -h/--help/help (e.g. "mailctl plan -h") returns
+		// flag.ErrHelp, which is success, not failure: it must exit zero with
+		// usage on stdout, the same as the bare-command spellings handled
+		// above, rather than propagating as "error: flag: help requested".
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Fprint(stdout, usage)
+			return nil
+		}
+		fmt.Fprintln(stderr, err)
+		fmt.Fprint(stderr, usage)
+		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
+	}
+	if err := rejectScopedFlags(flags, command, verb); err != nil {
+		return err
+	}
+	// PruneMailboxes only changes what Prune plans; without Prune it would
+	// silently do nothing, leaving an operator to conclude their tenant had
+	// no unmanaged mailboxes when the flag never took effect.
+	if *pruneMailboxes && !*prune {
+		return fmt.Errorf(
+			"-prune-mailboxes has no effect without -prune; add -prune to delete unmanaged mailboxes, or drop -prune-mailboxes")
+	}
+
+	cfgPath, cfgSource := resolveConfigPath(*configPath)
+	switch command {
+	case "doctor":
+		return runDoctor(cfgPath, cfgSource, *planJSON, stdout)
+	case "mcp":
+		if *configPath != "" {
+			// every tool call resolves its config the way the server was started
+			abs, err := filepath.Abs(*configPath)
+			if err != nil {
+				return err
+			}
+			if err := os.Setenv("MAILCTL_CONFIG", abs); err != nil {
+				return err
+			}
+		}
+		return runMCP(stdin, stdout)
+	}
+
+	cfg, err := config.Load(cfgPath, getenv)
+	if err != nil {
+		if cfgSource == "" && errors.Is(err, fs.ErrNotExist) {
+			return errNoConfig()
+		}
+		return err
+	}
+
+	if command == "domains" {
+		return printDomains(cfg, domains, *planJSON, stdout)
+	}
+
+	// "At least one domain" is a precondition of the commands that reconcile
+	// against a provider, not a property of a config document: import's whole
+	// purpose is to bootstrap the first domain, so it alone is exempt.
+	if command != "import" && len(cfg.Domains) == 0 {
+		return fmt.Errorf("config %s declares no domains", cfgPath)
+	}
+
+	secrets := secret.NewResolver(getenv)
+	ctx, cancel := commandContext(command)
+	defer cancel()
+
+	// mailbox and alias dispatch here, ahead of the CLOUDFLARE_API_TOKEN check
+	// below: rm (either) and mailbox passwd only touch the config file or
+	// Purelymail, so they return before that check would ever apply to them.
+	// add falls through past this block by setting command = "apply" without
+	// returning, since only its reconciling apply needs Cloudflare.
+	if command == "mailbox" || command == "alias" || command == "apppass" {
+		switch command {
+		case "mailbox":
+			address := target
+			if address == "" {
+				return errors.New("usage: mailctl mailbox add|rm|passwd <address>")
+			}
+			if !strings.Contains(address, "@") {
+				return fmt.Errorf("mailbox address %q has no @; expected local@domain", address)
+			}
+			domainName := domainOf(address)
+
+			switch verb {
+			case "add":
+				if err := requireDomainInScope(domainName, domains); err != nil {
+					return err
+				}
+				if err := configedit.AddMailbox(cfgPath, domainName, address, *passwordEnv); err != nil {
+					return err
+				}
+				noteConfigRewritten(stderr, cfgPath)
+			case "rm":
+				if err := configedit.RemoveMailbox(cfgPath, domainName, address); err != nil {
+					return err
+				}
+				noteConfigRewritten(stderr, cfgPath)
+				fmt.Fprintln(stderr,
+					"Removed from the config. The mailbox still exists at the provider; run apply -prune -prune-mailboxes to delete it and its mail.")
+				return nil
+			case "passwd":
+				return changePassword(ctx, cfg, address, *passwordEnv, secrets, *secretsOut, stderr)
+			default:
+				return fmt.Errorf("unknown mailbox verb %q; want add, rm, or passwd", verb)
+			}
+
+		case "alias":
+			match := target
+			if match == "" || *aliasDomain == "" {
+				return errors.New("usage: mailctl alias add|rm <local-part> -alias-domain <domain> [-to a@b.com]")
+			}
+			switch verb {
+			case "add":
+				if len(aliasTargets) == 0 {
+					return errors.New("alias add needs at least one -to address")
+				}
+				if err := requireDomainInScope(*aliasDomain, domains); err != nil {
+					return err
+				}
+				if err := configedit.AddAlias(cfgPath, *aliasDomain, match, aliasTargets); err != nil {
+					return err
+				}
+				noteConfigRewritten(stderr, cfgPath)
+			case "rm":
+				if err := configedit.RemoveAlias(cfgPath, *aliasDomain, match); err != nil {
+					return err
+				}
+				noteConfigRewritten(stderr, cfgPath)
+				fmt.Fprintln(stderr,
+					"Removed from the config. The rule still exists at the provider; run apply -prune to delete it.")
+				return nil
+			default:
+				return fmt.Errorf("unknown alias verb %q; want add or rm", verb)
+			}
+
+		case "apppass":
+			return appPassword(ctx, cfg, verb, target, *appPassName, *secretsOut, stderr)
+		}
+
+		if *editOnly {
+			fmt.Fprintln(stderr, "Config edited, nothing applied. Run `mailctl plan` to review the change.")
+			return nil
+		}
+
+		// mailbox add and alias add fall through here: reload the edited
+		// config and apply it, so the change reaches the provider in the
+		// same command. The reload must happen before runner is built below,
+		// which captures cfg by value; reloading afterward would leave the
+		// runner working from the pre-edit config.
+		cfg, err = config.Load(cfgPath, getenv)
+		if err != nil {
+			return err
+		}
+		command = "apply"
+	}
+
+	// ui may start without a token: its pages read the config, and only a
+	// plan or audit needs Cloudflare. The page then says what is missing
+	// instead of the command refusing to start.
+	if command == "ui" && getenv("CLOUDFLARE_API_TOKEN") == "" {
+		return serveUI(ctx, unconfiguredPlanner{cfg: cfg, domains: domains,
+			err: errors.New("CLOUDFLARE_API_TOKEN is required — set it and restart `mailctl ui`")},
+			uiOptions{addr: *uiAddr, dataDir: *uiData,
+				configPath: cfgPath, openBrowser: !*uiNoBrowser}, stdout)
+	}
+
+	// Every command still reachable here (plan, apply, audit, import, ui, and
+	// the mailbox/alias add fallthrough above) reconciles against Cloudflare.
+	runner, deps, err := buildEngine(cfg, domains, *prune, *pruneMailboxes, *replaceDNS, secrets)
+	if err != nil {
+		return err
+	}
+
+	if command == "import" {
+		if len(domains) != 1 {
+			return errors.New("import needs exactly one -domain")
+		}
+		name := domains[0]
+
+		providerName := *importProvider
+		if providerName == "" {
+			return errors.New("import needs -provider (purelymail, cfrouting, cfsending, or ms365)")
+		}
+		zoneName := *importZone
+		if zoneName == "" {
+			zoneName = name
+		}
+
+		provider, err := mail.Open(providerName, deps)
+		if err != nil {
+			return err
+		}
+		stub := config.Domain{Name: name, ZoneName: zoneName,
+			Mail: config.Mail{Providers: []string{providerName}}}
+
+		state, err := provider.Actual(ctx, stub)
+		if err != nil {
+			return err
+		}
+		block, err := importer.Render(name, zoneName, providerName, state)
+		if err != nil {
+			return err
+		}
+		fmt.Fprint(stdout, block)
+		return nil
+	}
+
+	if command == "ui" {
+		return serveUI(ctx, runner, uiOptions{addr: *uiAddr, dataDir: *uiData,
+			configPath: cfgPath, openBrowser: !*uiNoBrowser}, stdout)
+	}
+
+	if command == "audit" {
+		domains, err := runner.Domains()
+		if err != nil {
+			return err
+		}
+		failed := false
+		reports := []planjson.Report{}
+		for _, d := range domains {
+			desired, err := runner.Desired(ctx, d)
+			if err != nil {
+				return err
+			}
+			report := audit.Run(ctx, d, desired, audit.NetResolver(), audit.HTTPFetcher())
+			if *planJSON {
+				reports = append(reports, planjson.FromReport(report))
+			} else {
+				report.Render(stdout)
+			}
+			if !report.OK() {
+				failed = true
+			}
+		}
+		if *planJSON {
+			enc := json.NewEncoder(stdout)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(reports); err != nil {
+				return err
+			}
+		}
+		if failed {
+			return errors.New("audit found problems")
+		}
+		return nil
+	}
+
+	built, err := runner.Plan(ctx)
+	if err != nil {
+		return err
+	}
+	if *savedPlan != "" {
+		if err := requireSamePlan(*savedPlan, built); err != nil {
+			return err
+		}
+	}
+
+	if command == "plan" && *planJSON {
+		// Encode to stdout only. A human summary interleaved with the document
+		// would break every consumer that pipes this into a parser.
+		encoder := json.NewEncoder(stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(planjson.FromPlan(built))
+	}
+
+	if command == "plan" {
+		built.Render(stdout)
+		if len(built.Executable()) != 0 {
+			fmt.Fprintln(stdout, "\nRun `mailctl apply` to make these changes.")
+		}
+		return nil
+	}
+
+	built.Render(stdout)
+	if built.Empty() {
+		return nil
+	}
+	if !*assumeYes {
+		// The prompt goes to stderr, not stdout: stdout is the pipeable
+		// channel (e.g. `mailctl apply | tee log`), and a prompt hidden in a
+		// pipe looks like a hang.
+		if err := engine.Confirm(stdin, stderr, built); err != nil {
+			return err
+		}
+	}
+
+	applyErr := runner.Apply(ctx, built, stdout)
+
+	// Report only credentials that were actually applied: a value generated
+	// during planning but never set on the provider (because apply failed
+	// part-way) would send the operator chasing a mailbox that does not
+	// exist, and a rerun would generate a different value anyway.
+	if applied := secrets.Applied(); len(applied) > 0 {
+		if err := writeOrReport(stderr, *secretsOut, applied); err != nil {
+			return errors.Join(applyErr, err)
+		}
+	}
+	return applyErr
+}
+
+// commandContext returns the context run's command should execute under.
+// ui is a foreground server an operator leaves open for as long as they're
+// working, so it is cancelled by interrupt (Ctrl-C or a signal from a
+// supervisor), not by a deadline that would kill it out from under them
+// mid-session. Every other command keeps the original 10-minute deadline,
+// since a stuck network call there should eventually give up rather than
+// hang forever.
+func commandContext(command string) (context.Context, context.CancelFunc) {
+	if command == "ui" {
+		return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	}
+	return context.WithTimeout(context.Background(), 10*time.Minute)
+}
+
+// buildEngine wires the Cloudflare API client, the optional Worker deployer,
+// the DNS zone provider, and the mail.Deps bundle every remaining command
+// needs, then builds the engine those commands reconcile through. import
+// stops short of the engine: it only needs the returned deps, built the same
+// way, to open a single provider.
+func buildEngine(cfg config.Config, domains domainList, prune, pruneMailboxes, replaceDNS bool,
+	secrets *secret.Resolver) (*engine.Engine, mail.Deps, error) {
+
+	cloudflareToken := getenv("CLOUDFLARE_API_TOKEN")
+	if cloudflareToken == "" {
+		return nil, mail.Deps{}, errors.New("CLOUDFLARE_API_TOKEN is required")
+	}
+
+	api := cfapi.New(cfg.Cloudflare.BaseURL, cloudflareToken)
+
+	var deployer *worker.Deployer
+	if cfg.Cloudflare.AccountID != "" {
+		deployer = worker.New(api, cfg.Cloudflare.AccountID)
+	}
+
+	zones := cfdns.New(api, cfg.Cloudflare.TTL)
+
+	deps := mail.Deps{
+		Cloudflare:        api,
+		AccountID:         cfg.Cloudflare.AccountID,
+		PurelymailBaseURL: cfg.Purelymail.BaseURL,
+		Zones:             zones,
+		Getenv:            getenv,
+	}
+
+	runner := engine.New(cfg, zones, deployer, deps, engine.Options{
+		Domains:        domains,
+		Prune:          prune,
+		PruneMailboxes: pruneMailboxes,
+		ReplaceDNS:     replaceDNS,
+		Secrets:        secrets,
+	})
+
+	return runner, deps, nil
+}
+
+// shift returns the first element of args and the rest, or two empty/nil
+// values if args is empty.
+func shift(args []string) (string, []string) {
+	if len(args) == 0 {
+		return "", nil
+	}
+	return args[0], args[1:]
+}
+
+// domainOf returns the domain portion of an email address.
+func domainOf(address string) string {
+	_, domain, _ := strings.Cut(address, "@")
+	return strings.ToLower(domain)
+}
+
+// requireDomainInScope rejects a mailbox/alias add whose edited domain would
+// not actually be reconciled: add edits the config for editedDomain, then
+// falls through to an apply limited to -domain (scope). With scope set to
+// some other domain, that apply would create the mailbox or alias nowhere,
+// write it to the config anyway, and exit 0 as if it had reached the
+// provider. An empty scope means every domain, so it always passes.
+func requireDomainInScope(editedDomain string, scope domainList) error {
+	if len(scope) == 0 {
+		return nil
+	}
+	for _, name := range scope {
+		if strings.EqualFold(name, editedDomain) {
+			return nil
+		}
+	}
+	return fmt.Errorf("-domain %s does not include %s, the domain being edited", strings.Join(scope, ","), editedDomain)
+}
+
+// scopedFlags maps a flag name to the commands it is valid on. mailbox,
+// alias, and apppass each name one target address on the command line, not a
+// domain-wide reconciliation, so -prune (delete everything provider-side
+// absent from the config), -prune-mailboxes (extend that to mailboxes), and
+// -replace-dns apply to every domain in scope, not the one thing the operator
+// named, and -yes would skip the prompt that is the only guard against that.
+// import and audit never delete or write provider state at all. mailbox add
+// and alias add do fall through to an internal apply, but engine.Options is
+// built from these same flag values, so rejecting them here also keeps that
+// internal apply from ever running with Prune, PruneMailboxes, or ReplaceDNS
+// set, or its confirmation prompt skipped.
+//
+// -json is scoped the other way around: it is a rendering concern for plan
+// and audit alone, so apply must reject it rather than silently ignore it.
+//
+// -addr and -no-browser only mean anything to the server ui starts, so every
+// other command rejects them the same way plan rejects -json.
+var scopedFlags = map[string]map[string]bool{
+	"prune":           {"plan": true, "apply": true},
+	"prune-mailboxes": {"plan": true, "apply": true},
+	"replace-dns":     {"plan": true, "apply": true},
+	"yes":             {"plan": true, "apply": true},
+	"json":            {"plan": true, "audit": true, "domains": true, "doctor": true},
+	"plan":            {"apply": true},
+	"edit-only":       {"mailbox": true, "alias": true},
+	"addr":            {"ui": true},
+	"data":            {"ui": true},
+	"no-browser":      {"ui": true},
+}
+
+// rejectScopedFlags errors on a flag from scopedFlags the operator actually
+// set (via flags.Visit, not flags.VisitAll, so an unset default never
+// triggers this) for a command it is not valid on.
+func rejectScopedFlags(flags *flag.FlagSet, command, verb string) error {
+	label := command
+	if verb != "" {
+		label = command + " " + verb
+	}
+	var offense error
+	flags.Visit(func(f *flag.Flag) {
+		if offense != nil {
+			return
+		}
+		validOn, scoped := scopedFlags[f.Name]
+		if scoped && !validOn[command] {
+			offense = fmt.Errorf("flag -%s is not valid for %s", f.Name, label)
+		}
+	})
+	return offense
+}
+
+// noteConfigRewritten tells the operator the config file was fully
+// re-encoded: configedit preserves comments and key order, but yaml.Node has
+// no representation for a blank line, so any blank lines anywhere in the file
+// are dropped, not just near the edited section. A user who hand-formatted
+// the file should learn that from the tool, not from `git diff`.
+func noteConfigRewritten(stderr io.Writer, path string) {
+	fmt.Fprintf(stderr, "Note: %s was rewritten; comments and key order were preserved, blank lines were not.\n", path)
+}
+
+// requirePurelymailDomain resolves address's domain in cfg and requires it to
+// use only the purelymail provider, whose API is the only one addressed by
+// mailbox address rather than a config-scoped identifier: nothing else would
+// stop a typo'd or out-of-config address from reaching Purelymail directly.
+// operation names the caller's action for the error message.
+func requirePurelymailDomain(cfg config.Config, address, operation string) error {
+	domainName := domainOf(address)
+	d, ok := cfg.Domain(domainName)
+	if !ok {
+		return fmt.Errorf("domain %s is not in the config", domainName)
+	}
+	if len(d.Mail.Providers) == 1 && d.Mail.Providers[0] == purelymail.Name {
+		return nil
+	}
+	if len(d.Mail.Providers) == 1 && d.Mail.Providers[0] == ms365.Name {
+		return fmt.Errorf(
+			"domain %s: %s is only supported for the purelymail provider; manage this ms365 domain from the Microsoft 365 admin center",
+			domainName, operation)
+	}
+	return fmt.Errorf("domain %s: %s is only supported for the purelymail provider", domainName, operation)
+}
+
+// changePassword sets a new credential on an existing mailbox. A credential
+// never goes in the config file, so this bypasses configedit entirely.
+func changePassword(ctx context.Context, cfg config.Config, address, passwordEnv string,
+	secrets *secret.Resolver, secretsOut string, stderr io.Writer) error {
+
+	if err := requirePurelymailDomain(cfg, address, "changing a credential"); err != nil {
+		return err
+	}
+	domainName := domainOf(address)
+
+	token := getenv("PURELYMAIL_API_TOKEN")
+	if token == "" {
+		return errors.New("PURELYMAIL_API_TOKEN is required")
+	}
+	credential, err := secrets.Password(domainName, config.Mailbox{Address: address, PasswordEnv: passwordEnv})
+	if err != nil {
+		return err
+	}
+
+	client := purelymail.NewClient(cfg.Purelymail.BaseURL, token)
+	if err := client.ModifyUser(ctx, purelymail.UserChanges{UserName: address, NewPassword: &credential}); err != nil {
+		return fmt.Errorf("mailbox %s: %w", address, err)
+	}
+	fmt.Fprintf(stderr, "Credential changed for %s\n", address)
+
+	if generated := secrets.Generated(); len(generated) > 0 {
+		return writeOrReport(stderr, secretsOut, generated)
+	}
+	return nil
+}
+
+// appPassword creates or deletes an application credential. These are shown
+// once and cannot be listed, which is why they are not part of the config.
+func appPassword(ctx context.Context, cfg config.Config, verb, address, name, secretsOut string, stderr io.Writer) error {
+	if address == "" {
+		return errors.New("usage: mailctl apppass create|rm <address> [-name label]")
+	}
+	if err := requirePurelymailDomain(cfg, address, "an app credential"); err != nil {
+		return err
+	}
+
+	token := getenv("PURELYMAIL_API_TOKEN")
+	if token == "" {
+		return errors.New("PURELYMAIL_API_TOKEN is required")
+	}
+	client := purelymail.NewClient(cfg.Purelymail.BaseURL, token)
+
+	switch verb {
+	case "create":
+		credential, err := client.CreateAppPassword(ctx, address, name)
+		if err != nil {
+			return fmt.Errorf("mailbox %s: %w", address, err)
+		}
+		generated := map[string]string{appPasswordAccount(address, name): credential}
+		return writeOrReport(stderr, secretsOut, generated)
+	case "rm":
+		if name == "" {
+			return errors.New("apppass rm needs -name")
+		}
+		if err := client.DeleteAppPassword(ctx, address, name); err != nil {
+			return fmt.Errorf("mailbox %s: app credential %s: %w", address, name, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown apppass verb %q; want create or rm", verb)
+	}
+}
+
+// appPasswordAccount names an app credential where it is stored, so two
+// credentials for one mailbox never overwrite each other in the Keychain.
+func appPasswordAccount(address, name string) string {
+	if name == "" {
+		return address + " (app)"
+	}
+	return address + " (app " + name + ")"
+}

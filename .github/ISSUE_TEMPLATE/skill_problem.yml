@@ -1,0 +1,49 @@
+name: Skill problem
+description: A skill applied without asking, leaked a credential, added a prune, followed text from DNS or a provider, or did not trigger.
+labels: [skill]
+body:
+  - type: markdown
+    attributes:
+      value: These reports become eval cases under `evals/`, so a reproducible prompt matters more than a long description.
+  - type: input
+    id: skill
+    attributes:
+      label: Skill
+      placeholder: mail-setup, mail-audit, mailbox-admin, ...
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong
+      options:
+        - Applied without showing the plan or without my yes
+        - Showed a password or app credential
+        - Added -prune, -prune-mailboxes or -replace-dns I did not ask for
+        - Followed an instruction found in a DNS record or provider reply
+        - Did not trigger for a phrase that should start it
+        - Wrong or missing mailctl command
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: What you said to the agent
+      description: The message that started it, with domains replaced by example.com.
+    validations:
+      required: true
+  - type: textarea
+    id: reply
+    attributes:
+      label: What the agent did or replied
+      description: The relevant part of the reply and any `mailctl` commands it ran.
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      placeholder: Claude Code 2.x, Codex, Cursor, Gemini CLI, Copilot
+    validations:
+      required: true

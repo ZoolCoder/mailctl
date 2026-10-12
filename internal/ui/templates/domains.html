@@ -1,0 +1,34 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div><h1 class="pg">{{$.T "Domains"}}</h1><p class="sub">{{$.T "every domain the config declares, with what this session last saw for it"}}</p></div>
+  <div class="acts">{{template "run" run $ "plan" "/domains" "" true}}{{template "run" run $ "audit" "/domains" "" false}}</div>
+</div>
+
+<section class="panel">
+  <div class="panel-h">
+    <div class="search"><input type="search" id="q" placeholder="{{$.T "Search domains, providers…"}}" aria-label="{{$.T "Search domains"}}"><kbd>/</kbd></div>
+    <span class="act muted"><span id="shown">{{len .Domains}}</span> {{$.T "shown"}}</span>
+  </div>
+  <div class="tw"><table data-table data-search-input="#q" data-shown="#shown">
+    <thead><tr><th data-sort="name"><button type="button">{{$.T "Domain"}}</button></th><th>{{$.T "Zone"}}</th><th>{{$.T "Providers"}}</th><th class="num" data-sort="mailboxes" data-type="num"><button type="button">{{$.T "Mailboxes"}}</button></th><th class="num" data-sort="aliases" data-type="num"><button type="button">{{$.T "Aliases"}}</button></th><th>{{$.T "Catch-all"}}</th><th data-sort="health"><button type="button">{{$.T "Health"}}</button></th><th>{{$.T "Last plan"}}</th><th>{{$.T "Last audit"}}</th><th><span class="sr-only">{{$.T "Open"}}</span></th></tr></thead>
+    <tbody>
+    {{range .Domains}}
+      <tr data-search="{{lower .Name}} {{lower .Zone}} {{join .Providers " "}}{{range .Providers}} {{lower (provider .).Name}}{{end}} {{.HealthText}}" data-name="{{.Name}}" data-mailboxes="{{.Mailboxes}}" data-aliases="{{.Aliases}}" data-health="{{.Health}}">
+        <td><a class="name" href="/domains/{{.Name}}">{{.Name}}</a></td>
+        <td class="mono">{{.Zone}}</td>
+        <td>{{template "providers" .Providers}}</td>
+        <td class="num">{{.Mailboxes}}</td>
+        <td class="num">{{.Aliases}}</td>
+        <td>{{if .CatchAll}}<span class="chip on plain">{{$.T "yes"}}</span>{{else}}<span class="muted">—</span>{{end}}</td>
+        <td><span class="health {{.Health}}">{{.HealthText}}</span></td>
+        <td class="when">{{with .Plan}}{{ago $ .When}}{{else}}{{$.T "not run"}}{{end}}</td>
+        <td class="when">{{with .Audit}}{{ago $ .When}}{{else}}{{$.T "not run"}}{{end}}</td>
+        <td class="go"><a class="btn mini" href="/domains/{{.Name}}" aria-label="{{$.T "Open %s" .Name}}">{{$.T "Open"}}</a></td>
+      </tr>
+    {{else}}
+      <tr><td colspan="10" class="empty">{{$.T "the config declares no domains"}}</td></tr>
+    {{end}}
+    </tbody>
+  </table></div>
+</section>
+{{template "ts-bottom" .}}

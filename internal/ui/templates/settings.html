@@ -1,0 +1,35 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div><h1 class="pg">{{$.T "Settings"}}</h1><p class="sub">{{$.T "everything here comes from the command line, the environment and the Keychain"}}</p></div>
+</div>
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-h"><h2>{{$.T "Provider credentials"}}</h2><span class="n">{{len .Credentials}}</span></div>
+    <div class="creds">
+      {{range .Credentials}}<div class="row"><span><code>{{.Env}}</code><span class="for">{{.For}}</span></span>{{if .Set}}<span class="chip on">{{$.T "set"}}</span>{{else if .Needed}}<span class="chip bad">{{$.T "missing"}}</span>{{else}}<span class="chip off">{{$.T "not set"}}</span>{{end}}</div>{{end}}
+    </div>
+    <div class="panel-f">{{$.T "Presence only — this page never reads a value, let alone shows one. One marked missing is needed by a configured provider; plan and audit fail until the environment this process started with has it."}}</div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-h"><h2>{{$.T "Where things are"}}</h2></div>
+    <dl class="kv">
+      <dt>{{$.T "Config"}}</dt><dd><code>{{.ConfigPath}}</code></dd>
+      <dt>{{$.T "Data directory"}}</dt><dd><code>{{.DataDir}}</code> <span class="muted">{{$.T "activity log"}}</span></dd>
+      <dt>{{$.T "Activity log"}}</dt><dd>{{if .ActivityPath}}<code>{{.ActivityPath}}</code>{{else}}<span class="muted">{{$.T "off"}}</span>{{end}}</dd>
+      <dt>{{$.T "Access"}}</dt><dd>{{$.T "this machine only, no login; other sites cannot post to it"}}</dd>
+    </dl>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-h"><h2>{{$.T "How this works"}}</h2></div>
+  <ol class="steps">
+    <li><span><b>{{$.T "Same config, same engine"}}</b>{{$.TH "The page reads the same %s and environment the CLI does. Editing either needs a restart of %s." (code "mailctl.yaml") (code "mailctl ui")}}</span></li>
+    <li><span><b>{{$.T "Plan and audit on request"}}</b>{{$.TH "They run only when you press the button, so what you see here is what %s and %s print." (code "mailctl plan") (code "mailctl audit")}}</span></li>
+    <li><span><b>{{$.T "Apply in a terminal"}}</b>{{$.TH "Nothing here applies. %s makes changes, with its confirmation prompts and %s gate intact." (code "mailctl apply") (code "-prune")}}</span></li>
+    <li><span><b>{{$.T "One file on disk"}}</b>{{$.TH "The activity log is all this page writes, under %s (%s when unset) or wherever %s points." (code "$XDG_DATA_HOME/mailctl") (code "~/.local/share/mailctl") (code "-data")}}</span></li>
+  </ol>
+</section>
+{{template "ts-bottom" .}}

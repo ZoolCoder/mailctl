@@ -1,0 +1,89 @@
+= Purelymail
+:description: صناديق بريد Purelymail وأسماؤه البديلة والتقاطه الشامل وبيانات اعتماد التطبيقات وطرق الاسترداد.
+
+يستضيف البريد الوارد وصناديق البريد. وهو أكمل مزوّدي mailctl: يدعم صناديق البريد
+والأسماء البديلة والالتقاط الشامل وبيانات اعتماد التطبيقات وطرق استرداد كلمة السر.
+
+[#configuration]
+== الإعداد
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+      settings:
+        allowAccountReset: true
+        symbolicSubaddressing: false
+    mailboxes:
+      - address: contact@example.com
+        enableSearchIndexing: true
+    aliases:
+      - match: info
+        to: [contact@example.com]
+    catchAll:
+      to: [contact@example.com]
+----
+
+[#the-addressing-trap]
+== فخ العناوين
+
+يحدد `symbolicSubaddressing` أسماء المستخدمين المسموحة، والخطأ فيه ينتج رسالة خطأ
+مربكة.
+
+ما دام **مفعّلًا**، يرفض Purelymail أي رمز في اسم المستخدم. فهو يقرأ `first.last`
+على أنه المستخدم `first` بالوسم ``last``، فيفشل إنشاء `first.last@example.com` بالخطأ
+``invalidUserName``، وكذلك ``first-last@example.com``. لا تعمل إلا الأسماء الخالية من
+الرموز.
+
+اضبطه على `false` فيصير `first.last@example.com` مسموحًا. والثمن أن عناوين `+tag`
+تتوقف عن العمل في النطاق كله.
+
+فالخيار هو: عناوين ``firstname.lastname``، أو عناوين الوسوم بعلامة الجمع. لا كلاهما.
+قرّر قبل إنشاء صناديق البريد، لأن إعادة تسمية صندوق لاحقًا تعني إنشاء صندوق جديد
+ونقل البريد إليه.
+
+[#records-it-publishes]
+== السجلات التي ينشرها
+
+* `MX` على جذر النطاق
+* سجل SPF من نوع ``TXT``، يُدمج مع متطلبات كل مزوّد آخر في سجل واحد
+* ثلاثة سجلات DKIM من نوع ``CNAME``، من `purelymail1` إلى `purelymail3`
+* سجل `TXT` للملكية من أجل التحقق من النطاق
+* سجل `_dmarc` من نوع ``CNAME``، *إلا* إذا ضبط إعدادك ``deliverability.dmarc``؛ وحينها
+يملك mailctl الاسم `_dmarc` كسجل TXT ويُتخطّى CNAME الخاص بـ Purelymail، فلا يتنازع
+الاثنان على الاسم نفسه أبدًا
+
+[#mailbox-options]
+== خيارات صندوق البريد
+
+[cols="2,3"]
+|===
+| `enablePasswordReset` | هل يستطيع الصندوق إعادة تعيين كلمة سره بنفسه.
+| `enableSearchIndexing` | فهرسة البحث على الخادم.
+| `requireTwoFactorAuthentication` | يفرض المصادقة الثنائية على الصندوق. لاحظ أنه بعد تفعيلها تحتاج عملاء البريد إلى بيانات اعتماد تطبيق بدل كلمة سر الحساب؛ راجع `apppass` في xref:../commands.adoc[الأوامر].
+| `sendWelcomeEmail` | هل يرسل Purelymail رسالة الترحيب الخاصة به.
+| `recovery` | طرق إعادة تعيين كلمة السر. لكل مدخل `type` قيمته `email` أو ``phone``، و``target``، و``description`` اختياري، و``allowMfaReset``.
+|===
+
+تُطابَق طرق الاسترداد بحسب الهدف، لا بحسب النوع فقط. حذف عنوان من الإعداد يحذفه لدى
+المزوّد، وهذا هو المقصود: عنوان استرداد قديم طريق للعودة إلى الصندوق.
+
+[#client-settings]
+== إعدادات العميل
+
+للرجوع إليها عند تسليم صندوق بريد:
+
+[cols="1,2,1,1"]
+|===
+| | الخادم | المنفذ | الأمان
+
+| IMAP | `imap.purelymail.com` | 993 | SSL/TLS
+| SMTP | `smtp.purelymail.com` | 465 | SSL/TLS
+| SMTP (بديل) | `smtp.purelymail.com` | 587 | STARTTLS
+| POP3 | `pop3.purelymail.com` | 995 | SSL/TLS
+|===
+
+اسم المستخدم هو دائمًا عنوان البريد الكامل. فضّل IMAP: فـ POP3 ينزّل نسخًا ويترك لكل
+جهاز رؤيته المختلفة.

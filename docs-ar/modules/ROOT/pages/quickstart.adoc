@@ -1,0 +1,117 @@
+= البدء السريع
+:description: انقل نطاقًا واحدًا من لا شيء إلى بريد يعمل باستخدام mailctl.
+
+تنقل هذه الصفحة نطاقًا واحدًا من لا شيء إلى بريد يعمل. وتفترض أن Cloudflare
+يخدم DNS النطاق مسبقًا، وأن لديك حسابًا لدى مزوّد بريد.
+
+== 1. وفّر الرموز
+
+يقرأ mailctl كل بيانات الاعتماد من البيئة، ولا يقرؤها أبدًا من ملف الإعداد.
+احفظها في ملف خارج نظام التحكم بالإصدارات، وأضف قاعدة التجاهل *قبل* إنشاء الملف
+لا بعده:
+
+[source,console]
+----
+$ printf '*.secrets\n' >> .gitignore
+----
+
+ثم أنشئ `mailctl.secrets` في محررك بالمتغيرات أدناه، واضبط صلاحياته على `0600`،
+وحمّله في الصدفة:
+
+[source,properties]
+----
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ACCOUNT_ID=...
+PURELYMAIL_API_TOKEN=...
+----
+
+[source,console]
+----
+$ chmod 600 mailctl.secrets
+$ set -a; . ./mailctl.secrets; set +a
+----
+
+راجع xref:environment.adoc[بيانات الاعتماد والبيئة] لمعرفة المتغيرات التي يحتاجها
+كل مزوّد.
+
+== 2. صِف النطاق
+
+[source,yaml]
+----
+version: 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+  ttl: 1            # 1 means automatic
+
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+    mailboxes:
+      - address: contact@example.com
+----
+
+حذف `passwordEnv` من صندوق البريد يطلب من mailctl أن يولّد بيانات الاعتماد بنفسه.
+ويُبلَّغ عنها مرة واحدة فقط، عند إنشاء الصندوق فعلًا.
+
+== 3. خطّط
+
+[source,console]
+----
+$ mailctl plan
+----
+
+اقرأ المخرجات. كل سطر إجراء سيقوم به mailctl، بالترتيب الذي سيقوم به. لم يتغيّر
+شيء بعد.
+
+== 4. طبّق
+
+[source,console]
+----
+$ mailctl apply -secrets-out first-run.secrets
+----
+
+يكتب `-secrets-out` أي بيانات اعتماد مولّدة في ملف بصلاحيات `0600`. ويُرفض الملف
+إن كان موجودًا مسبقًا، فلا يمكن لإعادة التشغيل أن تكتب بصمت فوق بيانات اعتماد لم
+تحفظها بعد.
+
+[NOTE]
+====
+قد يتوقف التطبيق الأول في منتصف الطريق برسالة مثل
+`DNS ownership checks did not pass`. هذا متوقَّع وليس فشلًا: لا يرى المزوّد
+السجلات التي نشرتها للتو حتى تنتشر. يذكر الخطأ عدد الإجراءات التي نجحت. انتظر
+دقيقة وشغّل `apply` مرة أخرى؛ فكل إجراء آمن التكرار، ويُتخطّى ما اكتمل.
+====
+
+== 5. تأكّد من التقارب
+
+[source,console]
+----
+$ mailctl plan
+No changes. The live configuration already matches the config file.
+
+$ mailctl audit
+audit example.com
+  ok    MX example.com
+  ok    TXT example.com
+  ok    CNAME purelymail1._domainkey.example.com
+  ...
+----
+
+حين يبلّغ `plan` بعدم وجود تغييرات ويجتاز `audit` كل فحص، يكون النطاق متقاربًا.
+يحلّ `audit` السجلات عبر محلّل حقيقي بدل أن يثق بجواب المزوّد نفسه، فيكشف سجلًا
+يظن المزوّد أنه نشره لكنه لم يصل إلى DNS قط.
+
+== 6. سلّم بيانات الاعتماد
+
+استخرج كلمة السر المولّدة، وضعها في مدير كلمات السر، ثم احذف الملف:
+
+[source,console]
+----
+$ cat first-run.secrets
+$ rm first-run.secrets
+----
+
+قاعدتان تستحقان الالتزام: لا ترسل العنوان وكلمة سره عبر القناة نفسها، ولا ترسل
+بيانات اعتماد بالبريد إلى الصندوق الذي تفتحه أبدًا.

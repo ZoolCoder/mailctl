@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 150" width="830" height="150" font-size="15">
+  <title>كل أمر يحمّل ملف الإعداد ويقرأ الحالة الحية ويحدد السجلات المطلوبة ثم يقارن ويرتّب الإجراءات، فيطبعها plan وينفّذها apply</title>
+  <defs>
+    <marker id="pipe-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path class="d-head" d="M0 1L9 5L0 9z" fill="#63738A"/>
+    </marker>
+  </defs>
+  <g stroke-width="1.5">
+    <rect class="d-box" x="716" y="45" width="104" height="60" rx="12" fill="#FFFFFF" stroke="#B8C8DD"/>
+    <rect class="d-acc" x="586" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-acc" x="456" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-acc" x="326" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-acc" x="196" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-ok" x="10" y="10" width="136" height="52" rx="12" fill="#ECFDF3" stroke="#86EFAC"/>
+    <rect class="d-ok" x="10" y="88" width="136" height="52" rx="12" fill="#ECFDF3" stroke="#86EFAC"/>
+    <path class="d-edge" d="M715 75H694" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M585 75H564" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M455 75H434" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M325 75H304" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M196 66C172 58 168 40 150 37" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M196 84C172 92 168 110 150 113" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+  </g>
+  <g text-anchor="middle" font-family="system-ui,sans-serif">
+    <text class="d-text" x="768" y="72" fill="#131A27" font-weight="600">التحميل</text>
+    <text class="d-code" x="768" y="92" fill="#2563EB" font-size="12" font-family="ui-monospace,Menlo,monospace">mailctl.yaml</text>
+    <text class="d-text" x="638" y="72" fill="#131A27" font-weight="600">القراءة</text>
+    <text class="d-sub" x="638" y="92" fill="#46566D" font-size="12">الحالة الحية</text>
+    <text class="d-text" x="508" y="72" fill="#131A27" font-weight="600">المطلوب</text>
+    <text class="d-sub" x="508" y="92" fill="#46566D" font-size="12">السجلات اللازمة</text>
+    <text class="d-text" x="378" y="72" fill="#131A27" font-weight="600">المقارنة</text>
+    <text class="d-sub" x="378" y="92" fill="#46566D" font-size="12">ما سيتغيّر</text>
+    <text class="d-text" x="248" y="72" fill="#131A27" font-weight="600">الترتيب</text>
+    <text class="d-sub" x="248" y="92" fill="#46566D" font-size="12">ترتيب ثابت</text>
+    <text class="d-text" x="78" y="33" fill="#131A27" font-weight="600">plan</text>
+    <text class="d-sub" x="78" y="51" fill="#46566D" font-size="12">يطبع الإجراءات</text>
+    <text class="d-text" x="78" y="111" fill="#131A27" font-weight="600">apply</text>
+    <text class="d-sub" x="78" y="129" fill="#46566D" font-size="12">ينفّذها بالترتيب</text>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/zoolcoder/mailctl/security/advisories/new
+    about: Report privately. Please do not open a public issue for a vulnerability.
+  - name: Documentation
+    url: https://zoolcoder.github.io/mailctl/
+    about: Configuration reference, provider limits and troubleshooting.

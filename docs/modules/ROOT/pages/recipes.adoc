@@ -1,0 +1,201 @@
+= Recipes
+:description: Complete configs and command sequences for common mail setups.
+
+Each recipe is a complete domain block and the commands that go with it.
+Replace `example.com` with your domain. Every recipe starts the same way:
+`mailctl plan` to read what would change, then `mailctl apply`.
+
+== Real mailboxes on Purelymail
+
+Mailboxes you sign in to, with an alias and a catch-all, and a DMARC policy
+that starts by only reporting.
+
+[source,yaml]
+----
+version: 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+    mailboxes:
+      - address: contact@example.com     # credential generated and reported once
+    aliases:
+      - match: info
+        to: [contact@example.com]
+    catchAll:
+      to: [contact@example.com]
+    deliverability:
+      dmarc:
+        policy: none
+        rua: mailto:contact@example.com
+----
+
+Needs `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and
+`PURELYMAIL_API_TOKEN`. Where the generated credential goes depends on the
+machine:
+
+[tabs%sync]
+======
+macOS::
++
+`apply` stores it in the Keychain. Read it from there:
++
+[source,console]
+----
+$ security find-generic-password -s mailctl -a contact@example.com -w
+----
+
+Linux and CI::
++
+There is no Keychain, so ask `apply` for a file. It is created with mode
+`0600` and must not exist yet:
++
+[source,console]
+----
+$ mailctl apply -secrets-out creds.txt
+----
+======
+
+See xref:providers/purelymail.adoc[Purelymail] before you choose addresses
+with a dot in them.
+
+== Forward a domain to an inbox you already have
+
+No mailbox to pay for: Cloudflare Email Routing forwards mail to an existing
+address.
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: cfrouting
+    aliases:
+      - match: hello
+        to: [someone@gmail.com]
+    catchAll:
+      to: [someone@gmail.com]
+----
+
+Cloudflare emails each destination a confirmation link. Until its owner clicks
+it, `plan` reports the destination as unverified. See
+xref:providers/cloudflare.adoc[Cloudflare routing and sending].
+
+== Receive on Purelymail, send from an application through Cloudflare
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: [purelymail, cfsending]
+    mailboxes:
+      - address: contact@example.com
+----
+
+Both providers' SPF requirements merge into the one TXT record that RFC 7208
+allows.
+
+== Microsoft 365
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: ms365
+      ms365:
+        license: BUSINESS_BASIC
+        usageLocation: DE
+    mailboxes:
+      - address: a.person@example.com
+        displayName: A Person
+----
+
+Expect to run `apply` three times: the first adds the domain to the tenant,
+the second publishes DNS and verifies it, and the third creates the mailboxes.
+`plan` says which stage you are at. See
+xref:providers/ms365.adoc[Microsoft 365] for the app registration.
+
+== Adopt a domain that already has mail
+
+Start from what exists instead of writing YAML by hand:
+
+[source,console]
+----
+$ mailctl import -domain example.com -provider purelymail >> import.yaml
+----
+
+`import` changes nothing. Review the block, move it into your config, then run
+`mailctl plan`. A plan with `No changes.` means the config describes the domain
+exactly. Records that conflict with what the provider wants fail the plan;
+read them, then pass `-replace-dns` if replacing them is right.
+
+== Add a mailbox
+
+[source,console]
+----
+$ mailctl mailbox add new.person@example.com
+----
+
+This edits the config, keeping your comments, and then applies. Add
+`-edit-only` to stop after the edit and review it with `mailctl plan` first.
+
+== Remove a mailbox
+
+Removing a mailbox destroys its mail, so it takes two steps on purpose:
+
+. `mailctl mailbox rm old.person@example.com` removes it from the config only.
+. `mailctl apply -prune -prune-mailboxes` deletes it at the provider, after a
+  prompt that asks you to type the domain name.
+
+== Reset a credential
+
+[source,console]
+----
+$ mailctl mailbox passwd contact@example.com
+----
+
+mailctl generates a new credential and reports it once, to the Keychain on
+macOS. Pass `-password-env NAME` to set one you chose instead.
+
+== Tighten deliverability over time
+
+Enable policies in this order, and wait between steps while the reports come
+in:
+
+. Get mail working, and confirm it with `mailctl audit`.
+. DMARC `policy: none` with a `rua` address, and `tlsRpt`.
+. Read the reports and fix whatever they show.
+. DMARC `quarantine`, then `reject`.
+. MTA-STS `mode: testing` with `deploy: true`.
+. After a quiet week, MTA-STS `mode: enforce`.
+
+See xref:deliverability.adoc#a-sensible-order[A sensible order] for why.
+
+== Check everything from a browser
+
+[source,console]
+----
+$ mailctl ui
+----
+
+Run a plan and an audit from the dashboard. See xref:ui.adoc[The admin page].
+
+== Run from CI
+
+`plan -json` gives the action list as JSON for a script. `apply -plan` applies
+exactly a saved plan and refuses if live state has changed since:
+
+[source,console]
+----
+$ mailctl plan -json > plan.json
+$ mailctl apply -plan plan.json -secrets-out creds.txt
+----
+
+There is no Keychain in CI, so `-secrets-out` writes generated credentials to a
+new file with mode `0600`. Keep that file out of artifacts and logs.

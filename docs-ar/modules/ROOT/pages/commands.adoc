@@ -1,0 +1,298 @@
+= الأوامر
+:description: كل أوامر mailctl وخياراتها، وكيف يحمي الحذفُ صناديقَ البريد.
+
+كل أمر يقرأ ملف الإعداد نفسه والبيئة نفسها. و``plan`` هو الأمر الافتراضي حين لا
+يُعطى أمر.
+
+[#plan]
+== plan
+
+يقرأ الحالة الحية من كل مزوّد وكل منطقة، ويقارنها بالإعداد، ويطبع قائمة مرتّبة من
+الإجراءات. لا يكتب شيئًا.
+
+[source,console]
+----
+$ mailctl plan
+$ mailctl plan -domain example.com
+----
+
+الفرق الفارغ يطبع `No changes. The live configuration already matches the config
+file.` وأي شيء غير ذلك قائمة يجب أن تقرأها قبل التطبيق.
+
+التخطيط نقي: يقرأ المزوّدون أولًا، ثم تُحسب الإجراءات بلا أي إدخال أو إخراج إضافي.
+لهذا يمكن الوثوق بأن `plan` لا يغيّر شيئًا.
+
+يطبع `-json` قائمة الإجراءات نفسها بصيغة JSON بدل الملخص المقروء، ولا شيء غيرها: لا
+لافتة ولا عدد في النهاية، فيصلح للتمرير عبر الأنابيب. هذه هي المخرجات الحقيقية
+لإعداد فيه نطاق واحد وصندوق بريد واحد لم يُنشأ بعد، مقتطعة إلى أول إجراءين (التشغيل
+الكامل على هذا الإعداد يسرد تسعة):
+
+[source,console]
+----
+$ mailctl plan -json
+{
+  "schemaVersion": 1,
+  "actions": [
+    {
+      "id": "0",
+      "op": "CREATE",
+      "resource": "dns",
+      "domain": "example.com",
+      "provider": "cloudflare",
+      "detail": "MX example.com -> mailserver.purelymail.com priority=50",
+      "manual": false
+    },
+    {
+      "id": "1",
+      "op": "CREATE",
+      "resource": "dns",
+      "domain": "example.com",
+      "provider": "cloudflare",
+      "detail": "TXT example.com -> purelymail_ownership_proof=abc",
+      "manual": false
+    }
+  ]
+}
+----
+
+قيمة `op` بأحرف كبيرة دائمًا: `CREATE` أو `UPDATE` أو `DELETE` أو ``MANUAL``، مطابقة
+تمامًا لنموذج الإجراءات الداخلي في سطر الأوامر. ويذكر `provider` من يقوم بالكتابة:
+مزوّد إجراء `dns` هو ``cloudflare``، لأن Cloudflare هو من ينشر السجل، حتى على نطاق
+مُعَدّ لمزوّد البريد ``purelymail``؛ أما إجراءات `domain` و``mailbox`` فتحمل مزوّد
+البريد.
+
+قيمة `schemaVersion` هي ``1``. ولا تتغير إلا إذا حُذف حقل أو تغيّر معناه، فالمستهلك
+الذي يقرأ الحقول بأسمائها لا بمواقعها يبقى متوافقًا عبر الإصدارات الثانوية. لا يحمل
+الإجراء أبدًا الشيفرة التي تنفّذه، فهي موجودة داخل `apply` فقط، لذا يمكن تسجيل هذه
+المخرجات أو مقارنتها أو تسليمها لمسار عمل دون خطر أن تُعدّ وسيلة لجعل mailctl يفعل
+أي شيء.
+
+أنفع استخدام لها هو إيقاف مسار عمل بحسب وجود أي انحراف أصلًا:
+
+[source,console]
+----
+$ mailctl plan -json | jq -e '.actions | length == 0'
+----
+
+ينتهي `jq -e` بالرمز `1` حين تكون نتيجة المرشّح ``false``، فينتهي هذا السطر برمز غير
+صفري تمامًا حين يجد `plan` ما يغيّره: أفشِل مهمة CI عند الانحراف، أو تخطَّ خطوة حين
+لا يوجد.
+
+[#apply]
+== apply
+
+ينفّذ بالضبط الخطة التي سيطبعها ``plan``.
+
+[source,console]
+----
+$ mailctl apply
+$ mailctl apply -domain example.com -secrets-out new.secrets
+----
+
+تُنفَّذ الإجراءات بترتيب الاعتماديات: DNS قبل التحقق من النطاق، والتحقق قبل صناديق
+البريد، ويتوقف التنفيذ عند أول فشل. يذكر الخطأ المزوّد والكائن وعدد الإجراءات التي
+نجحت قبله، لأن هذا ما يخبرك هل تُصلح وتعيد التشغيل أم تحقّق.
+
+إن احتوت الخطة على أي حذف، يطلب منك `apply` كتابة اسم النطاق قبل المتابعة. يتخطّى
+`-yes` هذا السؤال، ويجب أن يُحفظ للخطط التي قرأتها مسبقًا.
+
+[#applying-a-saved-plan]
+=== تطبيق خطة محفوظة
+
+يطبّق `-plan` بالضبط خطة قرأتها مسبقًا، ولا شيء غيرها:
+
+[source,console]
+----
+$ mailctl plan -json -domain example.com > plan.json
+$ less plan.json
+$ mailctl apply -plan plan.json -domain example.com
+----
+
+يخطّط `apply` من جديد على الحالة الحية ويقارن النتيجة بالملف المحفوظ. إن اختلف أي
+شيء، كأن عدّل أحدهم سجلًا أو تغيّر الإعداد أو أجاب مزوّد بشكل مختلف، يرفض برسالة
+"live state drifted since the plan was saved" ولا يغيّر شيئًا. شغّل `plan -json`
+مجددًا وراجعه. مرّر خيارات `-domain` و``-prune`` و``-prune-mailboxes``
+و``-replace-dns`` نفسها التي خطّطت بها، وإلا فلن تتطابق الخطتان.
+
+هذه هي الخطوة التي يستخدمها الوكيل: يعرض عليك الخطة، فتوافق، ولا تُنفَّذ إلا تلك
+الخطة.
+
+[#audit]
+== audit
+
+يفحص السجلات المنشورة عبر محلّل DNS حقيقي، ويعرض بجانبها رؤية المزوّد نفسه لقابلية
+التسليم.
+
+[source,console]
+----
+$ mailctl audit -domain example.com
+----
+
+يجيب هذا عن سؤال مختلف عن ``plan``. يقارن `plan` الإعداد بواجهة المزوّد، أما `audit`
+فيسأل هل يرى العالم النتيجة فعلًا. السجل الذي يظن المزوّد أنه نشره لكنه لم يصل إلى
+DNS قط يظهر هنا ولا يظهر في أي مكان آخر.
+
+مع ``-json``، يطبع `audit` مصفوفة فيها تقرير لكل نطاق: `domain` و``ok`` و``checks``
+(لكل منها `name` و``want`` و``got`` و``ok``) و``notes``.
+
+[#domains]
+== domains
+
+يطبع ما يصرّح به الإعداد بعد تحليله، لكل نطاق: المزوّدون وصناديق البريد والأسماء
+البديلة والالتقاط الشامل والتوجيه وسياسة قابلية التسليم. لا يقرأ من أي مزوّد ولا
+يطبع أي سر: يظهر صندوق البريد باسم ``passwordEnv`` الخاص به، لا بقيمته أبدًا.
+
+[source,console]
+----
+$ mailctl domains
+$ mailctl domains -json -domain example.com
+----
+
+صيغة `-json` هي ما يقرؤه الوكلاء ولوحات التحكم (`schemaVersion` 1).
+
+[#doctor]
+== doctor
+
+يفحص قدرة mailctl على أداء عمله، ويقول ما يجب إصلاحه حين لا يستطيع.
+
+[source,console]
+----
+$ mailctl doctor
+ok    binary                       /opt/homebrew/bin/mailctl (PATH: /opt/homebrew/bin/mailctl)
+ok    keychain                     available, service mailctl
+ok    config                       /Users/you/.config/mailctl/mailctl.yaml (from user config), 1 domain(s)
+ok    CLOUDFLARE_API_TOKEN         from keychain
+ok    cloudflare api               token accepted
+ok    dns example.com              NS records resolve
+----
+
+الفحوص: الملف التنفيذي، وسلسلة المفاتيح، وأي ملف إعداد وُجد ولماذا، وكل بيانات
+اعتماد يحتاجها مزوّد مُعَدّ ومصدرها (`env` أو ``keychain``)، وكل `passwordEnv` لصندوق
+بريد (تحذير حين لا يكون مضبوطًا، لأن mailctl يولّد واحدًا حينها)، واستدعاء للقراءة
+فقط لكل واجهة مزوّد، واستعلام NS لكل منطقة. الفحص الفاشل يجعل `doctor` ينتهي برمز
+غير صفري. ويطبع `-json` التقرير نفسه بصيغة
+``{schemaVersion, version, checks: [{name, status, detail}]}``، والحالة `ok` أو
+`warn` أو ``fail``.
+
+[#mcp]
+== mcp
+
+يقدّم أدوات mailctl لوكيل ذكاء اصطناعي عبر Model Context Protocol، على الإدخال
+والإخراج القياسيين. راجع xref:agents.adoc[الوكلاء وMCP].
+
+[#ui]
+== ui
+
+يشغّل صفحة إدارة محلية للقراءة فقط تعرض ما يبلّغ به `plan` و``audit``، في المتصفح
+بدل الطرفية.
+
+[source,console]
+----
+$ mailctl ui
+mailctl ui on http://127.0.0.1:54217/ — this machine only; Ctrl-C to stop
+----
+
+تستمع على واجهة الاسترجاع المحلية فقط، وليس فيها زر تطبيق. راجع
+xref:ui.adoc[صفحة الإدارة] لصفحاتها ولغاتها واختصاراتها وأمانها.
+
+[#import]
+== import
+
+يطبع كتلة إعداد تصف ما هو موجود لدى مزوّد، ليمكن تبنّي نطاق قائم دون كتابة YAML
+يدويًا.
+
+[source,console]
+----
+$ mailctl import -domain example.com -provider purelymail
+----
+
+يكتب إلى الإخراج القياسي ولا يغيّر شيئًا. راجع الكتلة، ثم الصقها في إعدادك.
+
+[#mailbox]
+== mailbox
+
+[source,console]
+----
+$ mailctl mailbox add    contact@example.com
+$ mailctl mailbox add    contact@example.com -password-env CONTACT_PASSWORD
+$ mailctl mailbox rm     contact@example.com
+$ mailctl mailbox passwd contact@example.com
+----
+
+يعدّل `mailbox add` ملف الإعداد، مع الحفاظ على تعليقاتك وتنسيقك، ثم يطبّق. أما
+`mailbox rm` فيعدّل الإعداد *فقط*؛ ولا يحذف صندوق البريد لدى المزوّد أبدًا، لأن حذف
+سطر من ملف يجب ألا يتلف بريد أحد. لحذف الصندوق نفسه، احذفه من الإعداد ثم شغّل
+``apply -prune -prune-mailboxes``.
+
+يغيّر `mailbox passwd` بيانات الاعتماد لدى المزوّد. احذف `-password-env` ليولّدها
+mailctl.
+
+[#alias]
+== alias
+
+[source,console]
+----
+$ mailctl alias add info -to contact@example.com -alias-domain example.com
+$ mailctl alias rm  info -alias-domain example.com
+----
+
+كما في صناديق البريد، يعدّل `add` الإعداد ويطبّق، بينما يعدّل `rm` الإعداد فقط.
+
+الأسماء البديلة غير متاحة لدى كل المزوّدين. يرفضها Microsoft 365 كليًا؛ راجع
+xref:providers/ms365.adoc[Microsoft 365].
+
+[#apppass]
+== apppass
+
+[source,console]
+----
+$ mailctl apppass create contact@example.com -name "phone"
+$ mailctl apppass rm     contact@example.com -name "phone"
+----
+
+ينشئ بيانات اعتماد تطبيق لصندوق بريد أو يحذفها، حيث يدعمها المزوّد. مفيد حين تكون
+المصادقة الثنائية مفعّلة على الصندوق، فلا يستطيع عميل البريد استخدام كلمة سر الحساب.
+
+[#flags]
+== الخيارات
+
+[cols="1,1,3"]
+|===
+| الخيار | ينطبق على | المعنى
+
+| `-config` | الكل | مسار ملف الإعداد. الافتراضي ترتيب البحث في xref:configuration.adoc#where-the-file-is[الإعداد].
+| `-domain` | الكل | يقصر التشغيل على هذا النطاق. كرّره لعدة نطاقات. احذفه لمعالجة كل نطاقات الملف.
+| `-json` | plan، audit، domains، doctor | يطبع JSON على الإخراج القياسي بدل الملخص المقروء.
+| `-plan` | apply | يطبّق بالضبط مخرجات `plan -json` المحفوظة هذه. يرفض إن انحرفت الحالة الحية.
+| `-edit-only` | mailbox add، alias add | يعدّل الإعداد ويتوقف. شغّل `plan` لمراجعة التغيير.
+| `-yes` | apply | يتخطّى سؤال تأكيد الحذف.
+| `-prune` | plan، apply | يخطّط لحذف الكائنات لدى المزوّد الغائبة عن الإعداد.
+| `-prune-mailboxes` | plan، apply | يسمح لـ `-prune` بحذف صناديق البريد. لا أثر له دون ``-prune``، ويُرفض إن أُعطي وحده.
+| `-replace-dns` | plan، apply | يستبدل سجلات MX وSPF وDKIM وDMARC المتعارضة بدل الفشل.
+| `-secrets-out` | apply | يكتب بيانات الاعتماد المولّدة في هذا الملف، بصلاحيات ``0600``، بدل سلسلة المفاتيح. يرفض مسارًا موجودًا.
+| `-provider` | import | المزوّد الذي يُقرأ منه.
+| `-zone` | import | اسم منطقة Cloudflare، والافتراضي هو النطاق.
+| `-password-env` | mailbox add، passwd | متغير البيئة الذي يحمل بيانات الاعتماد.
+| `-alias-domain` | alias add، rm | النطاق الذي ينتمي إليه الاسم البديل.
+| `-to` | alias add | عنوان وجهة الاسم البديل. كرّره لعدة عناوين.
+| `-name` | apppass | تسمية بيانات اعتماد التطبيق.
+| `-addr` | ui | العنوان الذي يُستمع عليه. الافتراضي ``127.0.0.1:0``، فتختار النواة المنفذ.
+| `-data` | ui | مجلد سجل نشاط الصفحة. الافتراضي ``$XDG_DATA_HOME/mailctl``.
+| `-no-browser` | ui | لا تفتح متصفحًا بعد البدء.
+|===
+
+تُرفض الخيارات الخاصة بأمر واحد على الأوامر الأخرى بدل تجاهلها. وهذا مهم: فقد تسبّب
+`-prune` مقبول وغير مستخدم في `mailbox add` يومًا في حذف صندوق بريد لم يُذكر في سطر
+الأوامر قط.
+
+[#on-pruning]
+== عن الحذف
+
+`-prune` هو طريقتك لإزالة الأشياء. وهو صعب عمدًا مع صناديق البريد.
+
+حذف صندوق البريد يتلف بريده، لذا يتطلب mailctl خيارين لا خيارًا واحدًا: يقول
+`-prune` "أزل ما لم يعد الإعداد يذكره"، ويقول `-prune-mailboxes` "نعم، بما في ذلك
+صناديق البريد". وفوق ذلك، الحذف مُتلِف، لذا يطلب منك سؤال التأكيد كتابة اسم النطاق.
+
+لا يُحذف الالتقاط الشامل أبدًا. حذف `catchAll` من الإعداد يعني "اترك ما هو موجود"،
+لا "احذفه"، لأن القراءتين لا تتميزان في YAML وإحداهما تُضيّع البريد.

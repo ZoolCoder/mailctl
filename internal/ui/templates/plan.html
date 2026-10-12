@@ -1,0 +1,61 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div><h1 class="pg">{{$.T "Plan"}}</h1><p class="sub">{{$.TH "what %s would change — reads live state, changes nothing." (code "mailctl apply")}} {{with .Plan}}{{if .Scope}}{{$.TH "Last run %s, scoped to %s." (stamp .When) (strong .Scope)}}{{else}}{{$.T "Last run %s." (stamp .When)}}{{end}}{{else}}{{$.T "Not run yet in this session."}}{{end}}</p></div>
+  <div class="acts">
+    <form class="inline" method="post" action="/plan/run" data-busy="{{$.T "Planning…"}}">
+      <input type="hidden" name="return_to" value="/plan">
+      <label>{{$.T "Domain"}} <select name="domain"><option value="">{{$.T "every domain"}}</option>{{range .Domains}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      <button class="btn primary" type="submit">{{icon "play"}}{{$.T "Run plan"}}</button>
+    </form>
+  </div>
+</div>
+
+{{with .Plan}}
+  {{if .Err}}
+    <section class="callout bad" role="alert"><div><b>{{$.T "Plan failed"}}</b><p class="err">{{.Err}}</p><p class="small muted">{{$.T "Provider errors are the same ones the CLI prints; none carries a secret."}}</p></div></section>
+  {{else}}
+    <section class="kpis" aria-label="{{$.T "Summary"}}">
+      <div class="kpi"><span class="ic">{{icon "list"}}</span><span class="lbl">{{$.T "Actions"}}</span><b>{{.Counts.Total}}</b><span class="hint">{{$.T "across %s" (plural $ (len .Groups) "domain")}}</span>{{if .Counts.Total}}<span class="viz"><span class="dial xs">{{donut "ok warn bad man" (ints .Counts.Create .Counts.Update .Counts.Delete .Counts.Manual)}}</span></span>{{end}}</div>
+      <div class="kpi"><span class="ic">{{icon "plus"}}</span><span class="lbl">{{$.T "Create"}}</span><b class="{{if .Counts.Create}}ok{{else}}dim{{end}}">{{.Counts.Create}}</b><span class="hint">{{$.T "new records, mailboxes, aliases"}}</span></div>
+      <div class="kpi"><span class="ic">{{icon "edit"}}</span><span class="lbl">{{$.T "Update"}}</span><b class="{{if .Counts.Update}}warn{{else}}dim{{end}}">{{.Counts.Update}}</b><span class="hint">{{$.T "changed in place"}}</span></div>
+      <div class="kpi"><span class="ic">{{icon "trash"}}</span><span class="lbl">{{$.T "Delete"}}</span><b class="{{if .Counts.Delete}}bad{{else}}dim{{end}}">{{.Counts.Delete}}</b><span class="hint">{{if .Counts.Manual}}{{$.T "plus %d manual" .Counts.Manual}} · {{end}}{{$.T "needs -prune on the CLI"}}</span></div>
+    </section>
+    {{if .Counts.Total}}
+    <section class="panel" aria-labelledby="mix-h">
+      <div class="panel-h"><h2 id="mix-h">{{$.T "What the plan does"}}</h2></div>
+      <div class="chart">
+        <div class="dial sm" aria-hidden="true">{{donut "ok warn bad man" (ints .Counts.Create .Counts.Update .Counts.Delete .Counts.Manual)}}<div class="c"><b>{{.Counts.Total}}</b></div></div>
+        <ul class="legend"><li class="ok"><i></i><b>{{.Counts.Create}}</b> {{$.T "create"}}</li><li class="warn"><i></i><b>{{.Counts.Update}}</b> {{$.T "update"}}</li><li class="bad"><i></i><b>{{.Counts.Delete}}</b> {{$.T "delete"}}</li><li class="man"><i></i><b>{{.Counts.Manual}}</b> {{$.T "manual"}}</li></ul>
+      </div>
+    </section>
+    {{end}}
+    {{if .Counts.Delete}}<section class="callout bad"><div><b>{{plural $ .Counts.Delete "deletion"}} {{$.T "in this plan"}}</b>{{$.TH "mailctl apply skips deletions unless you add %s. Read each one below first." (code "-prune")}}</div></section>{{end}}
+    {{if .Counts.Manual}}<section class="callout"><div><b>{{$.T "%s need a human" (plural $ .Counts.Manual "step")}}</b>{{$.T "mailctl cannot finish these through an API. The detail column says what to do."}}</div></section>{{end}}
+    {{range .Groups}}
+      <section class="panel">
+        <div class="panel-h"><h2><a href="/domains/{{.Domain}}">{{.Domain}}</a></h2><span class="n">{{plural $ .Counts.Total "action"}}</span>
+          <span>{{if .Counts.Create}}<span class="chip on">{{$.T "%d create" .Counts.Create}}</span>{{end}}{{if .Counts.Update}}<span class="chip warn">{{$.T "%d update" .Counts.Update}}</span>{{end}}{{if .Counts.Delete}}<span class="chip bad">{{$.T "%d delete" .Counts.Delete}}</span>{{end}}{{if .Counts.Manual}}<span class="chip violet">{{$.T "%d manual" .Counts.Manual}}</span>{{end}}</span>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>{{$.T "Op"}}</th><th>{{$.T "Resource"}}</th><th>{{$.T "Detail"}}</th><th>{{$.T "Provider"}}</th></tr></thead>
+          <tbody>{{range .Actions}}<tr><td><span class="chip {{opChip .Op}}">{{$.T (print .Op)}}</span></td><td>{{.Resource}}</td><td class="wrap">{{.Detail}}</td><td>{{if .Provider}}{{template "providers" (list .Provider)}}{{else}}<span class="muted">—</span>{{end}}</td></tr>{{end}}</tbody>
+        </table></div>
+      </section>
+    {{else}}
+      <section class="callout ok"><div><b>{{$.T "No changes"}}</b>{{$.T "The live configuration already matches the config file."}}</div></section>
+    {{end}}
+    {{if .Groups}}
+    <section class="panel apply">
+      <span class="ic">{{icon "terminal"}}</span>
+      <div>
+        <h2>{{$.T "Apply from a terminal"}}</h2>
+        <p>{{$.T "This page never applies. The command re-plans, shows the same list, and asks before it changes anything."}}{{if $.Plan.Counts.Delete}} {{$.TH "Add %s to also delete." (code "-prune")}}{{end}}</p>
+        <div class="cmd"><code id="apply-cmd">{{$.Apply}}</code><button class="btn mini" type="button" data-copy="#apply-cmd">{{icon "copy"}}<span data-label>{{$.T "Copy"}}</span></button></div>
+      </div>
+    </section>
+    {{end}}
+  {{end}}
+{{else}}
+  <section class="panel"><p class="empty">{{$.TH "Press %s to read live provider state and list what would change. Nothing runs on its own." (strong ($.T "Run plan"))}}</p></section>
+{{end}}
+{{template "ts-bottom" .}}

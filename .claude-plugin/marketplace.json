@@ -1,0 +1,21 @@
+{
+  "name": "mailctl",
+  "owner": {
+    "name": "Abdallah Emad (ZoolCoder)",
+    "url": "https://github.com/zoolcoder"
+  },
+  "metadata": {
+    "description": "mailctl: skills, commands and agents for running email on your own domains with an AI agent.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "mailctl",
+      "source": "./",
+      "description": "Set up mail for a domain, audit deliverability, add mailboxes and aliases, always plan before apply.",
+      "version": "0.1.0",
+      "category": "devops",
+      "tags": ["email", "dns", "deliverability", "infrastructure"]
+    }
+  ]
+}

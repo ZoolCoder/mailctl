@@ -1,0 +1,106 @@
+name: ci
+
+# Actions minutes are rationed: the full set runs only for main (pushes, and the
+# release/* or hotfix/* -> main pull request). A pull request into develop gets
+# one quick test job; a push to develop runs nothing. Run the full set by hand
+# with workflow_dispatch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-flow:
+    # git flow: main takes only release and hotfix branches
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            release/*|hotfix/*) echo "ok: $HEAD_REF" ;;
+            *) echo "::error::main takes only release/* and hotfix/* branches, not $HEAD_REF; target develop"; exit 1 ;;
+          esac
+
+  quick:
+    # pull requests into develop: vet and the short tests, nothing else
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -short ./...
+
+  test:
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        # gofmt exits 0 even when it has complaints, so the output is the signal.
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::not gofmt-clean"; exit 1; }
+      - run: go vet ./...
+      # -count=1 defeats the test cache, so a green run means the tests executed.
+      - run: go test -count=1 -race -coverprofile=coverage.out ./...
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -1
+      - name: go.mod is tidy and the dependency set has not grown
+        # Exactly three direct dependencies: the YAML parser, toolshell and zcadmin.
+        # A new one is a design decision, not something that arrives unnoticed.
+        run: |
+          cp go.mod go.mod.bak && cp go.sum go.sum.bak && go mod tidy
+          diff -u go.mod.bak go.mod && diff -u go.sum.bak go.sum
+          direct=$(go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | tail -n +2 | grep -cv '^$')
+          [ "$direct" -eq 3 ] || { echo "::error::expected 3 direct dependencies, found $direct"; exit 1; }
+
+  lint:
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
+        with:
+          version: v2.14.0
+
+  plugin:
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # The plugin manifest, skills and commands must stay loadable by Claude Code.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+      - run: npx --yes @anthropic-ai/claude-code plugin validate .
+
+  release-config:
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
+        with:
+          version: '~> v2'
+          args: check

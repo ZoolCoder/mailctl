@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mailctl": {
+      "command": "mailctl",
+      "args": ["mcp"]
+    }
+  }
+}

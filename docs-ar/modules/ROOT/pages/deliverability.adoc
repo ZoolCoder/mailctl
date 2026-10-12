@@ -1,0 +1,126 @@
+= قابلية التسليم
+:description: SPF وDKIM وDMARC وMTA-STS وTLS-RPT وBIMI مع mailctl، وترتيب تفعيلها.
+
+خمسة أنواع من السجلات تقرر هل يُقبل بريدك وهل يستطيع أحد تزويره. ينشرها mailctl كلها
+من كتلة واحدة، ويفرض القواعد التي يسهل الخطأ فيها يدويًا.
+
+[#spf-exactly-one-record]
+== SPF: سجل واحد بالضبط
+
+يسمح RFC 7208 بسجل SPF واحد بالضبط من نوع TXT لكل اسم. سجلان ليسا "تغطية أوسع"،
+بل خطأ دائم يعامله بعض المستقبِلين كفشل قاطع.
+
+لهذا لا ينشر أي مزوّد سجل SPF الخاص به مباشرة. يقدّم كل منهم متطلبه، ويدمجها mailctl:
+
+[source,yaml]
+----
+deliverability:
+  spfIncludes:
+    - include:servers.mailgun.org
+----
+
+مع Purelymail للوارد وذلك التضمين الإضافي، يكون السجل المنشور سجل TXT واحدًا:
+
+----
+v=spf1 include:_spf.purelymail.com include:servers.mailgun.org ~all
+----
+
+قاعدتان يفرضهما الدمج:
+
+* **الأشد يفوز.** إن طلب أي مُدخل ``-all``، فالنتيجة ``-all``. تخفيف السياسة بصمت هو
+الخطأ الأسوأ.
+* **المدخلات آليات مفردة.** بلا مسافات، وبلا محدِّد ``all``، وبلا ``redirect=``. يُرفض
+مدخل `spfIncludes` الذي قد يتجاوز محدِّد السجل، لأن الغاية من الدمج كلها أن يتحكم
+mailctl في النتيجة.
+
+ويرفض mailctl أيضًا الآلية المشوّهة مباشرة: `include:` بلا قيمة، أو `include` بلا
+نقطتين. كلاهما ينتج سجلًا يبدو مضبوطًا ولا يفشل إلا على خوادم الآخرين المستقبِلة،
+وهذا أسوأ أنواع العطب.
+
+[#dmarc]
+== DMARC
+
+[source,yaml]
+----
+deliverability:
+  dmarc:
+    policy: quarantine        # none | quarantine | reject
+    subdomainPolicy: reject
+    pct: 100
+    rua: mailto:dmarc@example.com
+----
+
+ابدأ بـ `none` مع عنوان ``rua``، واقرأ التقارير أسبوعًا أو اثنين، ثم انتقل فقط بعدها
+إلى `quarantine` ثم ``reject``. الانتقال مباشرة إلى `reject` على نطاق لم تحصر مرسليه
+بعد يتخلّص بصمت من بريد مشروع.
+
+ضبط `dmarc` يجعل mailctl مالك الاسم ``_dmarc``. والمزوّدون الذين كانوا سينشرون CNAME
+خاصًا بهم لـ `_dmarc` يتنحّون، فلا يتنافس الاثنان أبدًا.
+
+[#mta-sts]
+== MTA-STS
+
+يخبر MTA-STS خوادم الإرسال بأن تشترط TLS لنطاقك. ويحتاج إلى سجل TXT *و*ملف سياسة
+يُقدَّم عبر HTTPS على عنوان معروف.
+
+[source,yaml]
+----
+deliverability:
+  mtaSts:
+    mode: testing             # none | testing | enforce
+    maxAge: 604800
+    deploy: true
+----
+
+يجعل `deploy: true` mailctl يولّد ويرفع Cloudflare Worker يقدّم السياسة، ويربطه بـ
+``mta-sts.<domain>``. لا حاجة إلى أدوات Node ولا إلى تثبيت Wrangler، فالـ Worker يُولَّد
+ويُرفع مباشرة.
+
+[WARNING]
+====
+ابدأ بـ `testing` وراقب تقارير TLS-RPT أسبوعًا. في وضع `enforce` يصير MX المضبوط خطأً
+*بريدًا لا يُسلَّم دون أي تحذير*، إذ يرفض المرسلون التسليم بدل التراجع.
+====
+
+يُشتق معرّف السياسة من محتواها، فتحتفظ السياسة غير المتغيرة بمعرّفها وتحصل المعدّلة على
+معرّف جديد تلقائيًا. ويسحب `mode: none` السياسة بدل أن يكون بلا أثر.
+
+[#tls-rpt]
+== TLS-RPT
+
+[source,yaml]
+----
+deliverability:
+  tlsRpt: mailto:tls-reports@example.com
+----
+
+يطلب من المستقبِلين الإبلاغ عن إخفاقات تسليم TLS. يستحق التفعيل *قبل* MTA-STS، لتكون
+التقارير جاهزة والسياسة في وضع ``testing``. يجب أن يبدأ كل عنوان مفصول بفاصلة بـ
+`mailto:` أو ``https:``.
+
+[#bimi]
+== BIMI
+
+[source,yaml]
+----
+deliverability:
+  bimi:
+    logo: https://example.com/logo.svg
+----
+
+ينشر سجل BIMI الذي يشير إلى شعارك. لاحظ أن معظم المستقبِلين يشترطون أيضًا شهادة
+علامة موثّقة (VMC) وسياسة DMARC بقيمة `quarantine` أو `reject` قبل عرضه، فلا يُرجَّح
+أن يُظهر BIMI وحده شيئًا.
+
+[#a-sensible-order]
+== ترتيب معقول
+
+. شغّل البريد: MX وSPF وDKIM. تأكّد بـ ``mailctl audit``.
+. أضف DMARC بـ `policy: none` مع عنوان ``rua``.
+. أضف ``tlsRpt``.
+. اقرأ التقارير. أصلح ما تكشفه.
+. انقل DMARC إلى ``quarantine``، ثم ``reject``.
+. أضف MTA-STS بـ ``mode: testing``.
+. بعد أسبوع هادئ، انقل MTA-STS إلى ``enforce``.
+
+كل خطوة قابلة للتراجع حتى الخطوتين الأخيرتين، ولهذا بالضبط تأتيان في النهاية.

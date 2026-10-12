@@ -1,0 +1,13 @@
+{{/* run is a button that runs a plan or audit: action, label, domain scope, where to come back to, primary or not. */}}
+{{define "run"}}<form method="post" action="{{.Action}}" data-busy="{{.Busy}}"><input type="hidden" name="return_to" value="{{.Back}}">{{if .Domain}}<input type="hidden" name="domain" value="{{.Domain}}">{{end}}<button class="btn{{if .Primary}} primary{{end}}" type="submit"{{if .Title}} title="{{.Title}}"{{end}}>{{template "run-icon" .Kind}}{{.Label}}</button></form>{{end}}
+
+{{/* qa-run is the same form drawn as a quick-action row. */}}
+{{define "qa-run"}}<form method="post" action="{{.Action}}" data-busy="{{.Busy}}"><input type="hidden" name="return_to" value="{{.Back}}">{{if .Domain}}<input type="hidden" name="domain" value="{{.Domain}}">{{end}}<button class="qa-row" type="submit"><span class="ic">{{template "run-icon" .Kind}}</span><span><b data-label>{{.Label}}</b><small>{{.Title}}</small></span><span></span><span class="flip">{{icon "arrow"}}</span></button></form>{{end}}
+
+{{define "run-icon"}}{{if eq . "plan"}}{{icon "play"}}{{else}}{{icon "shield"}}{{end}}{{end}}
+
+{{/* providers draws a domain's provider chips; the id stays in data-provider. */}}
+{{define "providers"}}{{range .}}{{$p := provider .}}<span class="chip {{$p.Tone}}" data-provider="{{.}}">{{$p.Name}}</span>{{end}}{{end}}
+
+{{/* legend lists a donut's shares beside it. */}}
+{{define "legend"}}<ul class="legend">{{range .}}<li class="{{.Tone}}"><i></i><b>{{.N}}</b> {{.Name}}</li>{{end}}</ul>{{end}}

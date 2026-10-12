@@ -1,0 +1,84 @@
+= التثبيت
+:description: ثبّت mailctl عبر Homebrew أو go install أو من المصدر، وتحقّق من الإعداد.
+
+mailctl ملف تنفيذي واحد له اعتمادية واحدة فقط من خارج المكتبة القياسية. لا يوجد
+ما يُضبط وقت التثبيت.
+
+== المتطلبات
+
+* Go {go-version} أو أحدث للبناء.
+* رمز Cloudflare API بصلاحية تعديل DNS على المناطق التي تديرها.
+* رمز لمزوّد البريد الذي يستخدمه كل نطاق.
+
+== التثبيت
+
+اختر طريقة واحدة. تنتهي كل منها بأمر `mailctl version` الذي يطبع الإصدار الذي
+ثبّته.
+
+[tabs%sync]
+======
+Homebrew::
++
+على macOS أو Linux:
++
+[source,console]
+----
+$ brew tap zoolcoder/mailctl https://github.com/zoolcoder/mailctl
+$ brew install --cask mailctl
+$ mailctl version
+----
++
+يثبّت الـ cask الملف التنفيذي للإصدار مع تثبيت بصمة SHA-256 الخاصة به، فيفشل
+تثبيت أي إصدار معدَّل بدل أن يُثبَّت بصمت.
+
+ملف تنفيذي::
++
+لا حاجة إلى أدوات بناء. ملفات تنفيذية لأنظمة Linux وmacOS وWindows على `amd64`
+و``arm64``، مع بصمات SHA-256، مرفقة بكل
+https://github.com/zoolcoder/mailctl/releases/latest[إصدار]:
++
+[source,console]
+----
+$ tar -xzf mailctl_v0.1.0_linux_amd64.tar.gz
+$ sha256sum -c checksums.txt --ignore-missing
+$ ./mailctl version
+----
+
+go install::
++
+مع أدوات Go:
++
+[source,console]
+----
+$ go install github.com/zoolcoder/mailctl/cmd/mailctl@latest
+$ mailctl version
+----
+
+من المصدر::
++
+[source,console]
+----
+$ git clone https://github.com/zoolcoder/mailctl
+$ cd mailctl
+$ go build ./cmd/mailctl
+$ ./mailctl version
+----
+======
+
+== تحقّق من البناء
+
+تعمل مجموعة الاختبارات دون اتصال بالكامل: كل واجهات المزوّدين مزيّفة عبر
+``httptest``، فلا حاجة إلى رمز ولا يُتّصل بأي جهة خارجية.
+
+[source,console]
+----
+$ go test ./...
+$ gofmt -l .
+$ go vet ./...
+----
+
+التشغيل النظيف يعني أن كل الحزم تنجح، وأن `gofmt` لا يطبع شيئًا، وأن `vet` صامت.
+
+== التالي
+
+أنشئ ملف إعداد وشغّل خطة: xref:quickstart.adoc[البدء السريع].

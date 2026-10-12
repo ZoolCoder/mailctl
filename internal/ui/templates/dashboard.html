@@ -1,0 +1,112 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div><h1 class="pg">{{$.T "Dashboard"}}</h1><p class="sub">{{$.TH "Mail infrastructure at a glance, from %s. Plan and audit run only when you press a button." (code .ConfigPath)}}</p></div>
+  <div class="acts">
+    <div class="led"><i></i><span class="lbl"><b>{{$.T "Config loaded"}}</b>{{plural $ (len .Domains) "domain"}}</span></div>
+    {{template "run" run $ "plan" "/" "" true}}{{template "run" run $ "audit" "/" "" false}}
+  </div>
+</div>
+
+<section class="next{{with .Next.Tone}} {{.}}{{end}}" aria-label="{{$.T "Next step"}}">
+  <span class="ic"><span class="flip">{{icon "arrow"}}</span></span>
+  <div><div class="next-k">{{$.T "Next step"}}</div><h2>{{.Next.Title}}</h2><p>{{.Next.Text}}</p></div>
+  <div>{{with .Next.Run}}{{template "run" .}}{{else}}{{if .Next.Href}}<a class="btn primary" href="{{.Next.Href}}">{{.Next.Label}}</a>{{end}}{{end}}</div>
+</section>
+
+<section class="kpis" aria-label="{{$.T "Summary"}}">
+  <a class="kpi hot" href="/domains"><span class="ic">{{icon "globe"}}</span><span class="lbl">{{$.T "Domains"}}</span><b>{{len .Domains}}</b><span class="hint">{{$.T "%d healthy · %d with issues" .Healthy .Issues}}</span><span class="viz wide">{{meter "ok warn bad dim" (ints .Healthy .Pending .Failing .Unchecked)}}</span></a>
+  <div class="kpi"><span class="ic">{{icon "mail"}}</span><span class="lbl">{{$.T "Mailboxes"}}</span><b>{{.Mailboxes}}</b><span class="hint">{{$.T "across every domain"}}</span>{{if .Domains}}<span class="viz">{{bars .MailboxSeries}}</span>{{end}}</div>
+  <div class="kpi"><span class="ic">{{icon "share"}}</span><span class="lbl">{{$.T "Aliases"}}</span><b>{{.Aliases}}</b><span class="hint">{{$.T "routing rules declared"}}</span>{{if .Domains}}<span class="viz">{{bars .AliasSeries}}</span>{{end}}</div>
+  <div class="kpi"><span class="ic">{{icon "cloud"}}</span><span class="lbl">{{$.T "Providers"}}</span><b>{{len .Providers}}</b><span class="hint">{{range $i, $p := .Providers}}{{if $i}}, {{end}}{{(provider $p).Name}}{{else}}{{$.T "none configured"}}{{end}}</span>{{if .ProviderMix}}<span class="viz"><span class="dial xs">{{donut .ProviderMix.Tones .ProviderMix.Values}}</span></span>{{end}}</div>
+</section>
+
+<section class="panel">
+  <div class="panel-h"><h2>{{$.T "Domain health"}}</h2><span class="n">{{len .Domains}}</span><a class="act" href="/domains">{{$.T "View all domains"}}</a></div>
+  <div class="split">
+    {{if .Domains}}<div class="tw"><table>
+      <thead><tr><th>{{$.T "Domain"}}</th><th>{{$.T "Providers"}}</th><th class="num">{{$.T "Mailboxes"}}</th><th class="num">{{$.T "Aliases"}}</th><th>{{$.T "Health"}}</th><th>{{$.T "Last audit"}}</th></tr></thead>
+      <tbody>{{range .Domains}}<tr>
+        <td><a class="name" href="/domains/{{.Name}}">{{.Name}}</a></td>
+        <td>{{template "providers" .Providers}}</td>
+        <td class="num">{{.Mailboxes}}</td><td class="num">{{.Aliases}}</td>
+        <td><span class="health {{.Health}}">{{.HealthText}}</span></td>
+        <td class="when">{{with .Audit}}{{ago $ .When}}{{else}}—{{end}}</td>
+      </tr>{{end}}</tbody>
+    </table></div>{{else}}<p class="empty">{{$.T "the config declares no domains"}}</p>{{end}}
+    <aside aria-label="{{$.T "Overall health"}}">
+      <div class="ring {{.HealthTone}}">{{ring .Healthy (len .Domains)}}<div class="c">{{if eq .HealthTone "none"}}<b>—</b><small>{{$.T "not checked"}}</small>{{else}}<b>{{.HealthPct}}%</b><small>{{$.T "overall health"}}</small>{{end}}</div></div>
+      <ul class="legend">
+        <li class="ok"><i></i><b>{{.Healthy}}</b> {{$.T "healthy"}}</li>
+        <li class="warn"><i></i><b>{{.Pending}}</b> {{$.T "pending changes"}}</li>
+        <li class="bad"><i></i><b>{{.Failing}}</b> {{$.T "failing"}}</li>
+        <li><i></i><b>{{.Unchecked}}</b> {{$.T "not checked"}}</li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<div class="grid-2 wide-l">
+  <section class="panel" aria-labelledby="runs-h">
+    <div class="panel-h"><h2 id="runs-h">{{$.T "Runs, last %d days" (len .Runs.Days)}}</h2><span class="n">{{.Runs.Total}}</span><a class="act" href="/activity">{{$.T "All activity"}}</a></div>
+    <p class="sr-only">{{$.T "%d runs in the last %d days, %d failed." .Runs.Total (len .Runs.Days) .Runs.Failed}}</p>
+    <div class="chart" aria-hidden="true">{{cols "ok bad" .Runs.Days}}
+      <ul class="legend"><li class="ok"><i></i><b>{{.Runs.OK}}</b> {{$.T "succeeded"}}</li><li class="bad"><i></i><b>{{.Runs.Failed}}</b> {{$.T "failed"}}</li></ul>
+    </div>
+  </section>
+  <section class="panel" aria-labelledby="mix-h">
+    <div class="panel-h"><h2 id="mix-h">{{$.T "Domains per provider"}}</h2></div>
+    {{if .ProviderMix}}<div class="chart">
+      <div class="dial sm" aria-hidden="true">{{donut .ProviderMix.Tones .ProviderMix.Values}}<div class="c"><b>{{len .Providers}}</b></div></div>
+      {{template "legend" .ProviderMix}}
+    </div>{{else}}<p class="empty">{{$.T "none configured"}}</p>{{end}}
+  </section>
+</div>
+
+<div class="grid-2">
+  <section class="panel runsum" aria-labelledby="lp-h">
+    <span class="ic">{{icon "list"}}</span>
+    <div><h2 id="lp-h">{{$.T "Last plan"}}</h2>
+      {{with .Plan}}{{if .Err}}<p>{{$.T "the plan failed"}}</p>{{else if .Counts.Total}}<p>{{$.T "%s across %s" (plural $ .Counts.Total "change") (plural $ (len .Groups) "domain")}}{{if .Scope}} · {{$.T "scoped to %s" .Scope}}{{end}}</p>{{else}}<p>{{$.T "converged · no changes"}}{{if .Scope}} · {{$.T "scoped to %s" .Scope}}{{end}}</p>{{end}}{{else}}<p>{{$.T "not run yet"}}</p>{{end}}
+    </div>
+    <div class="when">{{with .Plan}}{{ago $ .When}}<br>{{end}}<a class="btn mini" href="/plan">{{$.T "View plan"}} <span class="flip">{{icon "arrow"}}</span></a></div>
+    {{with .Plan}}
+      {{if .Err}}<p class="err chips-row">{{.Err}}</p>
+      {{else}}<p class="sr-only">{{$.T "%d create · %d update · %d delete · %d manual" .Counts.Create .Counts.Update .Counts.Delete .Counts.Manual}}</p>
+      <div class="chips-row" aria-hidden="true">
+        <span class="chip {{if .Counts.Create}}on{{else}}zero{{end}}"><i></i>{{$.T "%d create" .Counts.Create}}</span><span class="chip {{if .Counts.Update}}warn{{else}}zero{{end}}"><i></i>{{$.T "%d update" .Counts.Update}}</span><span class="chip {{if .Counts.Delete}}bad{{else}}zero{{end}}"><i></i>{{$.T "%d delete" .Counts.Delete}}</span><span class="chip {{if .Counts.Manual}}violet{{else}}zero{{end}}"><i></i>{{$.T "%d manual" .Counts.Manual}}</span>
+      </div>
+      {{if .Counts.Total}}{{meter "ok warn bad man" (ints .Counts.Create .Counts.Update .Counts.Delete .Counts.Manual)}}{{end}}
+      {{end}}
+    {{end}}
+  </section>
+  <section class="panel runsum" aria-labelledby="la-h">
+    <span class="ic">{{icon "shield"}}</span>
+    <div><h2 id="la-h">{{$.T "Last audit"}}</h2>
+      {{with .Audit}}<p>{{$.T "%s checked through a real resolver" (plural $ (add .Pass .Fail) "domain")}}{{if .Scope}} · {{$.T "scoped to %s" .Scope}}{{end}}</p>{{else}}<p>{{$.T "not run yet"}}</p>{{end}}
+    </div>
+    <div class="when">{{with .Audit}}{{ago $ .When}}<br>{{end}}<a class="btn mini" href="/audit">{{$.T "View audit"}} <span class="flip">{{icon "arrow"}}</span></a></div>
+    {{with .Audit}}
+      <div class="chips-row"><span class="chip {{if .Pass}}on{{else}}zero{{end}}"><i></i>{{$.T "%d passing" .Pass}}</span><span class="chip {{if .Fail}}bad{{else}}zero{{end}}"><i></i>{{$.T "%d failing" .Fail}}</span></div>
+      {{meter "ok bad" (ints .Pass .Fail)}}
+    {{end}}
+  </section>
+</div>
+
+<div class="grid-2 wide-l">
+  <section class="panel">
+    <div class="panel-h"><h2>{{$.T "Recent activity"}}</h2>{{with .Activity}}<span class="n">{{len .}}</span>{{end}}<a class="act" href="/activity">{{$.T "All activity"}}</a></div>
+    {{if .Activity}}<ul class="tl">{{range .Activity}}<li class="{{if .OK}}ok{{else}}bad{{end}}"><span class="when">{{ago $ .At}}</span><span class="dot"></span><span class="k" title="{{$.T .Kind}}">{{if .OK}}{{icon (kindIcon .Kind)}}{{else}}{{icon "xcircle"}}{{end}}</span><span class="d"><b>{{if .Target}}{{.Target}}{{else}}{{$.T "every domain"}}{{end}} · {{$.T .Kind}}{{if not .OK}} {{$.T "failed"}}{{end}}</b><span>{{.Detail}}</span></span></li>{{end}}</ul>
+    {{else}}<p class="empty">{{$.T "nothing yet — run a plan or an audit and it lands here"}}</p>{{end}}
+  </section>
+
+  <section class="panel">
+    <div class="panel-h"><h2>{{$.T "Getting around"}}</h2></div>
+    <ul class="qa">
+      <li>{{template "qa-run" run $ "plan" "/" "" false}}</li>
+      <li>{{template "qa-run" run $ "audit" "/" "" false}}</li>
+      <li><a class="qa-row" href="/domains"><span class="ic">{{icon "globe"}}</span><span><b>{{$.T "Review domains"}}</b><small>{{$.T "Mailboxes, aliases and routing per domain."}}</small></span><span><kbd>g</kbd> <kbd>d</kbd></span><span class="flip">{{icon "arrow"}}</span></a></li>
+      <li><a class="qa-row" href="/settings"><span class="ic">{{icon "gear"}}</span><span><b>{{$.T "Open settings"}}</b><small>{{$.T "Provider credentials and paths."}}</small></span><span><kbd>g</kbd> <kbd>s</kbd></span><span class="flip">{{icon "arrow"}}</span></a></li>
+    </ul>
+  </section>
+</div>
+{{template "ts-bottom" .}}

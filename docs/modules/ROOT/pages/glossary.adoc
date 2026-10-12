@@ -1,0 +1,73 @@
+= Glossary
+:description: The mail, DNS and mailctl terms used across this documentation.
+
+Alias::
+An extra address that delivers into an existing mailbox or forwards elsewhere.
+It has no storage of its own.
+
+Apply::
+The command that executes a plan. See xref:commands.adoc#apply[apply].
+
+BIMI::
+Brand Indicators for Message Identification. A TXT record pointing at a logo
+that some mail clients show next to your messages. It needs an enforcing DMARC
+policy.
+
+Catch-all::
+A rule that delivers mail for any address at a domain that has no mailbox or
+alias. mailctl never deletes one, even with `-prune`.
+
+Converged::
+A domain whose live state matches the config. `plan` reports `No changes.`
+
+DKIM::
+DomainKeys Identified Mail. A signature added by the sending server, checked
+against a public key published in DNS under a selector name.
+
+DMARC::
+Domain-based Message Authentication, Reporting and Conformance. A TXT record at
+`_dmarc` telling receivers what to do with mail that fails SPF and DKIM, and
+where to send reports.
+
+Idempotent::
+Safe to repeat. Running `apply` twice has the same effect as running it once.
+
+Manual action::
+A change shown in the plan that must be made by hand, because the provider's
+API cannot make it. `apply` never runs it.
+
+MTA-STS::
+Mail Transfer Agent Strict Transport Security. A policy, served over HTTPS and
+announced by a TXT record, telling senders to deliver to your domain only over
+verified TLS.
+
+MX::
+Mail exchanger. The DNS records naming the servers that accept mail for a
+domain.
+
+Ownership record::
+A TXT record a provider asks you to publish to prove you control a domain.
+
+Plan::
+The ordered list of changes mailctl would make, printed without making any.
+See xref:how-it-works.adoc[How it works].
+
+Provider::
+A service mailctl manages. Cloudflare holds DNS. Purelymail, Microsoft 365 and
+Cloudflare Email Routing and Sending handle mail.
+
+Prune::
+Deleting provider-side objects the config no longer names. Off by default, and
+mailboxes need a second flag. See xref:commands.adoc#on-pruning[On pruning].
+
+SPF::
+Sender Policy Framework. One TXT record listing the servers allowed to send
+for a domain. RFC 7208 allows exactly one, so mailctl merges every provider's
+requirement into it.
+
+TLS-RPT::
+TLS reporting. A TXT record at `_smtp._tls` naming where senders report TLS
+failures, which is how MTA-STS problems become visible.
+
+Zone::
+The set of DNS records for a domain, held in Cloudflare.

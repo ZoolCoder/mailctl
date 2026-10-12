@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "domains": [
+    {
+      "name": "example.com",
+      "zone": "example.com",
+      "providers": [
+        "purelymail"
+      ],
+      "mailboxes": [
+        {
+          "address": "contact@example.com",
+          "passwordEnv": "CONTACT_PW",
+          "recovery": 1
+        },
+        {
+          "address": "sales@example.com",
+          "recovery": 0
+        }
+      ],
+      "aliases": [
+        {
+          "match": "info",
+          "to": [
+            "contact@example.com"
+          ]
+        }
+      ],
+      "catchAll": {
+        "to": [
+          "contact@example.com"
+        ]
+      },
+      "deliverability": {
+        "spfIncludes": [
+          "_spf.example.net"
+        ],
+        "dmarc": {
+          "policy": "quarantine",
+          "pct": 100,
+          "rua": "mailto:dmarc@example.com"
+        },
+        "mtaSts": {
+          "mode": "testing",
+          "maxAge": 86400,
+          "deploy": false
+        }
+      }
+    }
+  ]
+}

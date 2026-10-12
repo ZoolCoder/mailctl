@@ -1,0 +1,15 @@
+{
+  "domain": "example.com",
+  "ok": true,
+  "checks": [
+    {
+      "name": "MX",
+      "want": "mail.example.net",
+      "got": "mail.example.net",
+      "ok": true
+    }
+  ],
+  "notes": [
+    "DKIM targets are taken from config"
+  ]
+}

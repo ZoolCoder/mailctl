@@ -1,0 +1,90 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    # Only rebuild when something that affects the site changes.
+    paths:
+      - 'docs/**'
+      - 'docs-ar/**'
+      - 'antora-playbook.yml'
+      - 'antora-assembler.yml'
+      - 'Gemfile'
+      - 'Gemfile.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Least privilege: the build job needs only to read the repo. Pages deployment
+# gets its own narrower grants on the deploy job.
+permissions:
+  contents: read
+
+# One deployment at a time. Do not cancel a run in progress: a half-finished
+# Pages deployment is worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Antora reads the git history of this worktree, and the "Last
+          # updated" date comes from it, so a shallow clone would hide both.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # asciidoctor-pdf renders the PDF export. bundler-cache runs bundle
+      # install into vendor/bundle and caches it by Gemfile.lock.
+      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Install Antora
+        run: npm ci
+
+      - name: Build the site and the PDF
+        # `npm run docs` fetches the PDF theme from the pinned
+        # zc-supplemental-ui release, then runs Antora with Assembler. The
+        # Arabic PDF prints through the Chrome that ubuntu-latest ships.
+        #
+        # Antora reports an unresolved xref as a warning and still emits a page
+        # with a broken link. A docs site whose navigation silently rots is not
+        # worth publishing, so treat any warning as a build failure.
+        run: |
+          npm run docs 2>&1 | tee build.log
+          test "${PIPESTATUS[0]}" -eq 0
+          if grep -q '"level":"warn"' build.log; then
+            echo "::error::Antora emitted warnings; see the log above."
+            grep '"level":"warn"' build.log
+            exit 1
+          fi
+          test -s build/site/mailctl/_exports/index.pdf
+          test -s build/site/mailctl-ar/_exports/index.pdf
+          test -s build/site/llms.txt
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

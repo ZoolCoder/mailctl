@@ -1,0 +1,147 @@
+= The admin page
+:description: mailctl ui, a local and read-only admin page for plan and audit.
+
+`mailctl ui` runs a local admin page. It shows what `plan` and `audit` would
+report, without a terminal. It is the same binary, reading the same config and
+the same credentials, so the page and the CLI never disagree.
+
+image::ui-dashboard-light.png[The dashboard in the light theme: a next-step card, summary cards and the domain health table]
+
+== Start it
+
+[source,console]
+----
+$ mailctl ui
+mailctl ui on http://127.0.0.1:54217/ — this machine only; Ctrl-C to stop
+----
+
+The page opens in your browser. It is a foreground process with no daemon, and
+Ctrl-C stops it.
+
+[cols="1,3"]
+|===
+| `-addr` | Address to listen on. Defaults to `127.0.0.1:0`, so the kernel picks a free port. Two instances never collide, and the port cannot be found by scanning a fixed one. A non-loopback address is refused.
+| `-data` | Directory for the activity log. Defaults to `$XDG_DATA_HOME/mailctl`, or `~/.local/share/mailctl` when that is unset.
+| `-no-browser` | Print the address but do not open a browser.
+| `-config` | The config file, found the same way as for every other command.
+|===
+
+== Read-only by design
+
+The page never changes anything at a provider. Plan and audit are buttons: each
+runs the same live check as the command, and only when you press it. The page
+never spends a provider call, or a rate-limit token, on its own. The domain list
+and what the config declares for each domain cost no provider call, so they
+show at once.
+
+There is no apply button and no endpoint that applies anything. The Plan page
+ends with the `mailctl apply` command to copy into a terminal. That command
+plans again and keeps its confirmation prompts and the `-prune` gate.
+
+== The pages
+
+Dashboard::
+A next-step card names the one thing to do now: run a plan, review its
+changes, run an audit, or fix a failing domain. Below it are summary cards for
+domains, mailboxes, aliases and providers, a health table with one row per
+domain, charts of recent runs and of domains per provider, and recent activity.
++
+A domain is _healthy_ once an audit passes or a plan comes back clean. It has
+_pending changes_ while a plan has actions for it, and it is _failing_ on a
+failed check or an error.
+
+Domains::
+Every domain in the config, in a table you can search and sort. Each domain has
+its own page with tabs for its mailboxes, aliases and catch-all, deliverability
+policy, provider settings and, on request, the DNS records the engine wants
+published. The mailbox table shows where each credential comes from, never the
+value.
+
+Plan::
+The same `plan` as the CLI. It shows totals and a chart of the mix of actions,
+a warning when the plan deletes anything or needs a human step, and the actions
+grouped by domain. Each row has an operation chip: green `CREATE`, amber
+`UPDATE`, red `DELETE` and violet `MANUAL`.
+
+Audit::
+The same `audit` as the CLI. It shows every check per domain with a pass or
+fail chip, and the value the config wants next to the value the resolver got.
+A domain whose desired records cannot be computed reports its own error and
+leaves the others intact.
+
+Activity::
+What the page did, newest first: plans, audits and desired-record lookups.
+Charts show the runs of the last 14 days and the mix by kind. The table can be
+filtered by kind, searched and exported as CSV.
+
+Settings::
+Which provider credentials are set (presence only, never a value), and where
+the config file, the data directory and the activity log are.
+
+image::ui-domain-dark.png[A domain page in the dark theme, with tabs for mailboxes, aliases, deliverability, DNS records, plan and audit]
+
+== Languages
+
+The page is in English or Arabic. Choose the language from the menu in the
+header. Arabic turns the whole layout right to left. Provider errors, addresses
+and record values stay in their own direction, so they read correctly inside
+Arabic text.
+
+The choice is a cookie in your browser. The activity log on disk always stays
+in English, so it reads the same whoever opens it.
+
+image::ui-activity-arabic.png[The activity page in Arabic and the dark theme, laid out right to left]
+
+== Themes and layout
+
+The profile menu switches between light, dark and auto, which follows your
+operating system. The sidebar folds to icons with `[`, and on a phone it slides
+in from the side. Both choices are cookies, so the first paint is already
+right.
+
+== Keyboard
+
+[cols="1,3"]
+|===
+| Ctrl K, ⌘K | Open the command palette, then type to jump to any page or domain.
+| `g` then `h` | Dashboard
+| `g` then `d` | Domains
+| `g` then `p` | Plan
+| `g` then `a` | Audit
+| `g` then `l` | Activity
+| `g` then `s` | Settings
+| `/` | Search the table on the page.
+| `[` | Fold or unfold the sidebar.
+| `?` | List every shortcut.
+| Esc | Close a menu, dialog or the palette.
+|===
+
+== While it works
+
+A plan or an audit can take several seconds, because it asks every provider
+for live state. While it runs, the page is covered by a veil that says what is
+happening, so a second press cannot start a second run. The result arrives as
+a toast. If the run fails, the toast and the page show the same error the CLI
+would print. No provider error carries a credential.
+
+An unknown address shows a styled "not found" page. An internal error shows a
+styled error page, never a half-drawn page.
+
+== Security
+
+The page has no login. Being unreachable from other machines is what guards
+it:
+
+* It listens on loopback only, and refuses a non-loopback `-addr`.
+* It refuses a request that names a host other than its own, which blocks DNS
+  rebinding.
+* It refuses any write that another site starts: a foreign `Origin`, or
+  `Sec-Fetch-Site: cross-site`.
+* It runs under a strict Content-Security-Policy that allows only its own
+  files. It loads no web fonts and no third-party scripts.
+* The only file it writes is the activity log.
+
+See xref:security.adoc[Security] for the guarantees of mailctl as a whole.
+
+The page is built on https://github.com/zoolcoder/toolshell[toolshell], an open
+source admin shell for server-rendered Go apps.

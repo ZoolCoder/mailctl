@@ -1,0 +1,50 @@
+{{template "ts-top" .}}
+<div class="top">
+  <div><h1 class="pg">{{$.T "Activity"}}</h1><p class="sub">{{$.T "what this page did — plans, audits, desired records — newest first, last %d" .Limit}}</p></div>
+  <div class="acts"><button class="btn" type="button" id="csv-btn">{{icon "download"}}{{$.T "Export CSV"}}</button></div>
+</div>
+
+<div class="grid-2 wide-l">
+  <section class="panel" aria-labelledby="runs-h">
+    <div class="panel-h"><h2 id="runs-h">{{$.T "Runs, last %d days" (len .Runs.Days)}}</h2><span class="n">{{.Runs.Total}}</span></div>
+    <p class="sr-only">{{$.T "%d runs in the last %d days, %d failed." .Runs.Total (len .Runs.Days) .Runs.Failed}}</p>
+    <div class="chart" aria-hidden="true">{{cols "ok bad" .Runs.Days}}
+      <ul class="legend"><li class="ok"><i></i><b>{{.Runs.OK}}</b> {{$.T "succeeded"}}</li><li class="bad"><i></i><b>{{.Runs.Failed}}</b> {{$.T "failed"}}</li></ul>
+    </div>
+  </section>
+  <section class="panel" aria-labelledby="kind-h">
+    <div class="panel-h"><h2 id="kind-h">{{$.T "By kind"}}</h2></div>
+    <div class="chart">
+      <div class="dial sm" aria-hidden="true">{{donut .Mix.Tones .Mix.Values}}<div class="c">{{if .Runs.Total}}<b>{{.Runs.SuccessPct}}%</b><small>{{$.T "succeeded"}}</small>{{else}}<b>—</b>{{end}}</div></div>
+      {{template "legend" .Mix}}
+    </div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-h filters">
+    <nav class="chips" aria-label="{{$.T "Kind"}}">
+      <a href="/activity"{{if not .Kind}} class="on" aria-current="true"{{end}}>{{$.T "All"}}</a>
+      {{range .Kinds}}<a href="/activity?kind={{.}}"{{if eq . $.Kind}} class="on" aria-current="true"{{end}}>{{$.T .}}</a>{{end}}
+    </nav>
+    <div class="search"><input type="search" id="q" placeholder="{{$.T "Search detail, domain…"}}" aria-label="{{$.T "Search activity"}}"><kbd>/</kbd></div>
+    <span class="act muted"><span id="shown">{{len .Rows}}</span> {{$.T "shown"}}</span>
+  </div>
+  <div class="tw"><table id="activity" data-table data-search-input="#q" data-shown="#shown" data-per-page="50" data-pager="#pager" data-csv="csv-btn" data-csv-name="mailctl-activity.csv">
+    <thead><tr><th>{{$.T "When"}}</th><th>{{$.T "Kind"}}</th><th>{{$.T "Domain"}}</th><th>{{$.T "Detail"}}</th></tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr data-search="{{.Search}}">
+        <td class="when">{{stamp .At}}</td>
+        <td data-csv="{{.Kind}}{{if not .OK}} failed{{end}}">{{if .OK}}<span class="chip on plain">{{$.T .Kind}}</span>{{else}}<span class="chip bad plain">{{$.T .Kind}} <span aria-hidden="true">✕</span><span class="sr-only">{{$.T "failed"}}</span></span>{{end}}</td>
+        <td>{{if .Target}}<a class="name" href="/domains/{{.Target}}">{{.Target}}</a>{{else}}<span class="muted">{{$.T "every domain"}}</span>{{end}}</td>
+        <td class="wrap">{{.Detail}}</td>
+      </tr>
+    {{else}}
+      <tr><td colspan="4" class="empty">{{if .Kind}}{{$.T "nothing recorded for this filter"}} — <a href="/activity">{{$.T "show everything"}}</a>{{else}}{{$.T "nothing recorded yet — run a plan or an audit from the dashboard and it lands here"}} · <a href="/">{{$.T "Dashboard"}}</a>{{end}}</td></tr>
+    {{end}}
+    </tbody>
+  </table></div>
+  <div class="pager" id="pager"></div>
+</section>
+{{template "ts-bottom" .}}

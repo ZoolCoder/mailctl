@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 830 150" width="830" height="150" font-size="15">
+  <title>Every command loads the config, reads live state, works out the desired records, diffs and orders the actions, then plan prints them and apply runs them</title>
+  <defs>
+    <marker id="pipe-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path class="d-head" d="M0 1L9 5L0 9z" fill="#63738A"/>
+    </marker>
+  </defs>
+  <g stroke-width="1.5">
+    <rect class="d-box" x="10" y="45" width="104" height="60" rx="12" fill="#FFFFFF" stroke="#B8C8DD"/>
+    <rect class="d-acc" x="140" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-acc" x="270" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-acc" x="400" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-acc" x="530" y="45" width="104" height="60" rx="12" fill="#EAF2FF" stroke="#9DBEFF"/>
+    <rect class="d-ok" x="684" y="10" width="136" height="52" rx="12" fill="#ECFDF3" stroke="#86EFAC"/>
+    <rect class="d-ok" x="684" y="88" width="136" height="52" rx="12" fill="#ECFDF3" stroke="#86EFAC"/>
+    <path class="d-edge" d="M115 75H136" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M245 75H266" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M375 75H396" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M505 75H526" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M634 66C658 58 662 40 680 37" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+    <path class="d-edge" d="M634 84C658 92 662 110 680 113" fill="none" stroke="#63738A" marker-end="url(#pipe-head)"/>
+  </g>
+  <g text-anchor="middle" font-family="system-ui,sans-serif">
+    <text class="d-text" x="62" y="72" fill="#131A27" font-weight="600">Load</text>
+    <text class="d-code" x="62" y="92" fill="#2563EB" font-size="12" font-family="ui-monospace,Menlo,monospace">mailctl.yaml</text>
+    <text class="d-text" x="192" y="72" fill="#131A27" font-weight="600">Read</text>
+    <text class="d-sub" x="192" y="92" fill="#46566D" font-size="12">live state</text>
+    <text class="d-text" x="322" y="72" fill="#131A27" font-weight="600">Desire</text>
+    <text class="d-sub" x="322" y="92" fill="#46566D" font-size="12">records needed</text>
+    <text class="d-text" x="452" y="72" fill="#131A27" font-weight="600">Diff</text>
+    <text class="d-sub" x="452" y="92" fill="#46566D" font-size="12">what changes</text>
+    <text class="d-text" x="582" y="72" fill="#131A27" font-weight="600">Order</text>
+    <text class="d-sub" x="582" y="92" fill="#46566D" font-size="12">one fixed order</text>
+    <text class="d-text" x="752" y="33" fill="#131A27" font-weight="600">plan</text>
+    <text class="d-sub" x="752" y="51" fill="#46566D" font-size="12">prints the actions</text>
+    <text class="d-text" x="752" y="111" fill="#131A27" font-weight="600">apply</text>
+    <text class="d-sub" x="752" y="129" fill="#46566D" font-size="12">runs them in order</text>
+  </g>
+</svg>

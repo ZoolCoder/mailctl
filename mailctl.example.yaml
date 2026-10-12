@@ -1,0 +1,81 @@
+# mailctl configuration. Copy to mailctl.yaml and edit.
+# String values may reference environment variables with dollar-brace syntax
+# (for example the accountId below); an unset variable is an error, never an
+# empty string.
+version: 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+  ttl: 1 # 1 means automatic
+
+domains:
+  - name: example.com
+    # zoneName defaults to name; set it when the Cloudflare zone differs.
+    zoneName: example.com
+
+    mail:
+      provider: purelymail
+      settings:
+        allowAccountReset: true
+        symbolicSubaddressing: false
+
+    mailboxes:
+      # Omit passwordEnv to have mailctl generate a credential and print it once.
+      - address: contact@example.com
+        passwordEnv: CONTACT_PASSWORD
+        enableSearchIndexing: true
+        recovery:
+          - type: email
+            target: recovery@example.net
+            description: personal
+
+      - address: a.person@example.com
+        passwordEnv: A_PERSON_PASSWORD
+      - address: b.person@example.com
+        passwordEnv: B_PERSON_PASSWORD
+      - address: c.person@example.com
+        passwordEnv: C_PERSON_PASSWORD
+
+    aliases:
+      # match: info is an exact match on the local part "info". Add a
+      # trailing * (e.g. info*) to match any local part starting with info.
+      - match: info
+        to: [contact@example.com]
+
+    # Omit catchAll entirely to leave whatever exists untouched.
+    catchAll:
+      to: [contact@example.com]
+
+    # deliverability publishes SPF, DMARC, MTA-STS, TLS-RPT, and BIMI records
+    # alongside whatever mail.provider asks for. Setting dmarc here makes
+    # mailctl own the _dmarc record: the purelymail provider then skips its
+    # own _dmarc CNAME so the two never fight over the same name.
+    deliverability:
+      # spfIncludes adds mechanisms beyond what mail.provider already
+      # contributes (e.g. an outbound sending service the provider doesn't
+      # know about). Each entry is exactly one mechanism: no whitespace, no
+      # "all" qualifier, no redirect= modifier - mailctl derives the
+      # strictest qualifier itself and rejects anything that could override
+      # the record.
+      spfIncludes:
+        - include:servers.mailgun.org
+
+      dmarc:
+        policy: quarantine
+        subdomainPolicy: reject
+        pct: 100 # omit to default to 100
+        rua: mailto:dmarc@example.com
+
+      # tlsRpt asks receivers to report TLS delivery failures here. Each
+      # comma-separated address must start with mailto: or https:.
+      tlsRpt: mailto:tls-reports@example.com
+
+      bimi:
+        logo: https://example.com/logo.svg
+
+      # mtaSts publishes the policy TXT record. Start at testing and watch
+      # tlsRpt reports for a week before moving to enforce, or a
+      # misconfigured MX becomes undeliverable mail with no warning.
+      mtaSts:
+        mode: testing
+        deploy: true # true uploads and binds the policy-serving Worker

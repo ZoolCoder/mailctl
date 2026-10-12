@@ -1,0 +1,194 @@
+= وصفات
+:description: إعدادات وتسلسلات أوامر كاملة لحالات البريد الشائعة.
+
+كل وصفة كتلة نطاق كاملة مع الأوامر المرافقة لها. استبدل `example.com` بنطاقك.
+تبدأ كل وصفة بالطريقة نفسها: `mailctl plan` لقراءة ما سيتغيّر، ثم `mailctl apply`.
+
+== صناديق بريد حقيقية على Purelymail
+
+صناديق بريد تسجّل الدخول إليها، مع اسم بديل والتقاط شامل، وسياسة DMARC تبدأ
+بالإبلاغ فقط.
+
+[source,yaml]
+----
+version: 1
+
+cloudflare:
+  accountId: ${CLOUDFLARE_ACCOUNT_ID}
+
+domains:
+  - name: example.com
+    mail:
+      provider: purelymail
+    mailboxes:
+      - address: contact@example.com     # credential generated and reported once
+    aliases:
+      - match: info
+        to: [contact@example.com]
+    catchAll:
+      to: [contact@example.com]
+    deliverability:
+      dmarc:
+        policy: none
+        rua: mailto:contact@example.com
+----
+
+تحتاج إلى `CLOUDFLARE_API_TOKEN` و``CLOUDFLARE_ACCOUNT_ID`` و``PURELYMAIL_API_TOKEN``.
+ويعتمد مكان بيانات الاعتماد المولّدة على الجهاز:
+
+[tabs%sync]
+======
+macOS::
++
+يحفظها `apply` في سلسلة المفاتيح (Keychain). اقرأها من هناك:
++
+[source,console]
+----
+$ security find-generic-password -s mailctl -a contact@example.com -w
+----
+
+Linux وCI::
++
+لا توجد سلسلة مفاتيح، فاطلب من `apply` ملفًا. يُنشأ بصلاحيات `0600` ويجب ألا يكون
+موجودًا مسبقًا:
++
+[source,console]
+----
+$ mailctl apply -secrets-out creds.txt
+----
+======
+
+راجع xref:providers/purelymail.adoc[Purelymail] قبل أن تختار عناوين فيها نقطة.
+
+== حوّل نطاقًا إلى صندوق وارد لديك مسبقًا
+
+بلا صندوق بريد تدفع ثمنه: يحوّل Cloudflare Email Routing البريد إلى عنوان قائم.
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: cfrouting
+    aliases:
+      - match: hello
+        to: [someone@gmail.com]
+    catchAll:
+      to: [someone@gmail.com]
+----
+
+يرسل Cloudflare إلى كل وجهة رابط تأكيد بالبريد. إلى أن ينقره صاحبها، يبلّغ `plan`
+بأن الوجهة غير مؤكَّدة. راجع
+xref:providers/cloudflare.adoc[التوجيه والإرسال عبر Cloudflare].
+
+== استقبل على Purelymail، وأرسل من تطبيق عبر Cloudflare
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: [purelymail, cfsending]
+    mailboxes:
+      - address: contact@example.com
+----
+
+تُدمج متطلبات SPF للمزوّدَين في سجل TXT الوحيد الذي يسمح به RFC 7208.
+
+== Microsoft 365
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: ms365
+      ms365:
+        license: BUSINESS_BASIC
+        usageLocation: DE
+    mailboxes:
+      - address: a.person@example.com
+        displayName: A Person
+----
+
+توقّع أن تشغّل `apply` ثلاث مرات: الأولى تضيف النطاق إلى المستأجر، والثانية تنشر
+DNS وتتحقق منه، والثالثة تنشئ صناديق البريد. يخبرك `plan` بالمرحلة التي أنت فيها.
+راجع xref:providers/ms365.adoc[Microsoft 365] لتسجيل التطبيق.
+
+== تبنَّ نطاقًا لديه بريد مسبقًا
+
+ابدأ مما هو موجود بدل كتابة YAML يدويًا:
+
+[source,console]
+----
+$ mailctl import -domain example.com -provider purelymail >> import.yaml
+----
+
+لا يغيّر `import` شيئًا. راجع الكتلة، وانقلها إلى إعدادك، ثم شغّل `mailctl plan`.
+الخطة التي تقول `No changes.` تعني أن الإعداد يصف النطاق بدقة. السجلات التي
+تتعارض مع ما يريده المزوّد تُفشل الخطة؛ اقرأها، ثم مرّر `-replace-dns` إن كان
+استبدالها صحيحًا.
+
+== أضف صندوق بريد
+
+[source,console]
+----
+$ mailctl mailbox add new.person@example.com
+----
+
+يعدّل هذا الأمر الإعداد مع الإبقاء على تعليقاتك، ثم يطبّق. أضف `-edit-only` للتوقف
+بعد التعديل ومراجعته بـ `mailctl plan` أولًا.
+
+== احذف صندوق بريد
+
+حذف صندوق البريد يتلف بريده، لذا يتطلب خطوتين عمدًا:
+
+. `mailctl mailbox rm old.person@example.com` يحذفه من الإعداد فقط.
+. `mailctl apply -prune -prune-mailboxes` يحذفه لدى المزوّد، بعد سؤال يطلب منك
+  كتابة اسم النطاق.
+
+== أعد تعيين بيانات الاعتماد
+
+[source,console]
+----
+$ mailctl mailbox passwd contact@example.com
+----
+
+يولّد mailctl بيانات اعتماد جديدة ويبلّغ عنها مرة واحدة، إلى سلسلة المفاتيح على
+macOS. مرّر `-password-env NAME` لتعيين قيمة اخترتها أنت.
+
+== شدّد قابلية التسليم مع الوقت
+
+فعّل السياسات بهذا الترتيب، وانتظر بين الخطوات ريثما تصل التقارير:
+
+. اجعل البريد يعمل، وتأكد من ذلك بـ `mailctl audit`.
+. DMARC بـ `policy: none` مع عنوان ``rua``، و``tlsRpt``.
+. اقرأ التقارير وأصلح ما تكشفه.
+. DMARC بـ ``quarantine``، ثم ``reject``.
+. MTA-STS بـ `mode: testing` مع `deploy: true`.
+. بعد أسبوع هادئ، MTA-STS بـ `mode: enforce`.
+
+راجع xref:deliverability.adoc#a-sensible-order[ترتيب معقول] لمعرفة السبب.
+
+== افحص كل شيء من المتصفح
+
+[source,console]
+----
+$ mailctl ui
+----
+
+شغّل خطة وتدقيقًا من لوحة التحكم. راجع xref:ui.adoc[صفحة الإدارة].
+
+== شغّل من CI
+
+يعطي `plan -json` قائمة الإجراءات بصيغة JSON لنص برمجي. ويطبّق `apply -plan` خطة
+محفوظة بالضبط، ويرفض إن تغيّرت الحالة الحية منذ حفظها:
+
+[source,console]
+----
+$ mailctl plan -json > plan.json
+$ mailctl apply -plan plan.json -secrets-out creds.txt
+----
+
+لا توجد سلسلة مفاتيح في CI، لذا يكتب `-secrets-out` بيانات الاعتماد المولّدة في
+ملف جديد بصلاحيات ``0600``. أبقِ هذا الملف خارج المخرجات والسجلات.

@@ -1,0 +1,295 @@
+= Commands
+:description: Every mailctl command and flag, and how pruning protects mailboxes.
+
+Every command reads the same config file and the same environment. `plan` is the
+default when no command is given.
+
+== plan
+
+Reads live state from every provider and every zone, diffs it against the config,
+and prints an ordered list of actions. It performs no writes.
+
+[source,console]
+----
+$ mailctl plan
+$ mailctl plan -domain example.com
+----
+
+An empty diff prints `No changes. The live configuration already matches the
+config file.` Anything else is a list you should read before applying.
+
+Planning is pure: providers do their reading first, then compute actions with no
+further I/O. That is why `plan` can be trusted not to change anything.
+
+`-json` prints the same action list as JSON instead of the human summary, and
+nothing else — no banner, no trailing count — so it is safe to pipe. This is the
+real output for a config with one domain and one mailbox not yet created,
+trimmed to its first two actions (a full run against this config lists nine):
+
+[source,console]
+----
+$ mailctl plan -json
+{
+  "schemaVersion": 1,
+  "actions": [
+    {
+      "id": "0",
+      "op": "CREATE",
+      "resource": "dns",
+      "domain": "example.com",
+      "provider": "cloudflare",
+      "detail": "MX example.com -> mailserver.purelymail.com priority=50",
+      "manual": false
+    },
+    {
+      "id": "1",
+      "op": "CREATE",
+      "resource": "dns",
+      "domain": "example.com",
+      "provider": "cloudflare",
+      "detail": "TXT example.com -> purelymail_ownership_proof=abc",
+      "manual": false
+    }
+  ]
+}
+----
+
+`op` is always uppercase — `CREATE`, `UPDATE`, `DELETE` or `MANUAL` — matching
+the CLI's internal action model exactly. `provider` names whoever performs the
+write: a `dns` action's provider is `cloudflare`, because Cloudflare is what
+publishes the record, even on a domain configured for the `purelymail` mail
+provider; `domain` and `mailbox` actions carry the mail provider instead.
+
+`schemaVersion` is `1`. It only changes if a field is removed or repurposed, so a
+consumer reading fields by name rather than by position stays compatible across
+minor releases. An action never carries the code that would execute it — that
+exists only inside `apply` — so this output can be logged, diffed, or handed to a
+pipeline with no risk of it being mistaken for a way to make mailctl do anything.
+
+The most useful thing to do with it is gate a pipeline on whether there is any
+drift at all:
+
+[source,console]
+----
+$ mailctl plan -json | jq -e '.actions | length == 0'
+----
+
+`jq -e` exits `1` when the filter's result is `false`, so this line exits
+non-zero exactly when `plan` found something to change — fail a CI job on drift,
+or skip a step when there is none.
+
+== apply
+
+Executes exactly the plan that `plan` would print.
+
+[source,console]
+----
+$ mailctl apply
+$ mailctl apply -domain example.com -secrets-out new.secrets
+----
+
+Actions run in dependency order — DNS before domain verification, verification
+before mailboxes — and execution stops at the first failure. The error names the
+provider, the object, and how many actions had already succeeded, because that is
+what tells you whether to fix and rerun or investigate.
+
+If the plan contains any deletion, `apply` asks you to type the domain name before
+proceeding. `-yes` skips that prompt and should be reserved for plans you have
+already read.
+
+=== Applying a saved plan
+
+`-plan` applies exactly a plan you already read, and nothing else:
+
+[source,console]
+----
+$ mailctl plan -json -domain example.com > plan.json
+$ less plan.json
+$ mailctl apply -plan plan.json -domain example.com
+----
+
+`apply` plans again against live state and compares the result with the saved
+file. If anything differs — someone edited a record, the config changed, a
+provider answered differently — it refuses with "live state drifted since the
+plan was saved" and changes nothing. Run `plan -json` again and review it. Pass
+the same `-domain`, `-prune`, `-prune-mailboxes` and `-replace-dns` flags you
+planned with, or the plans will not match.
+
+This is the step an agent uses: it shows you the plan, you say yes, and only
+that plan runs.
+
+== audit
+
+Checks the published records through a real DNS resolver and reports the
+provider's own view of deliverability alongside.
+
+[source,console]
+----
+$ mailctl audit -domain example.com
+----
+
+This answers a different question from `plan`. `plan` compares config against the
+provider's API; `audit` asks whether the world can actually see the result. A
+record the provider believes it published but which never reached DNS shows up
+here and nowhere else.
+
+With `-json`, `audit` prints an array with one report per domain:
+`domain`, `ok`, `checks` (each with `name`, `want`, `got`, `ok`) and `notes`.
+
+== domains
+
+Prints what the config declares, resolved, per domain: providers, mailboxes,
+aliases, catch-all, routing and deliverability policy. It reads no provider and
+prints no secret: a mailbox shows the name of its `passwordEnv`, never a value.
+
+[source,console]
+----
+$ mailctl domains
+$ mailctl domains -json -domain example.com
+----
+
+`-json` is the shape agents and dashboards read (`schemaVersion` 1).
+
+== doctor
+
+Checks that mailctl can do its job, and says what to fix when it cannot.
+
+[source,console]
+----
+$ mailctl doctor
+ok    binary                       /opt/homebrew/bin/mailctl (PATH: /opt/homebrew/bin/mailctl)
+ok    keychain                     available, service mailctl
+ok    config                       /Users/you/.config/mailctl/mailctl.yaml (from user config), 1 domain(s)
+ok    CLOUDFLARE_API_TOKEN         from keychain
+ok    cloudflare api               token accepted
+ok    dns example.com              NS records resolve
+----
+
+The checks: the binary, the Keychain, which config file was found and why,
+each credential a configured provider needs and where it came from (`env` or
+`keychain`), each mailbox `passwordEnv` (a warning when unset, since mailctl
+then generates one), one read-only call per provider API, and an NS lookup per
+zone. A failing check makes `doctor` exit non-zero. `-json` prints the same
+report as `{schemaVersion, version, checks: [{name, status, detail}]}`, with
+status `ok`, `warn` or `fail`.
+
+== mcp
+
+Serves mailctl's tools to an AI agent over the Model Context Protocol, on
+stdin and stdout. See xref:agents.adoc[Agents and MCP].
+
+== ui
+
+Runs a local, read-only admin page that shows what `plan` and `audit` report,
+in a browser instead of a terminal.
+
+[source,console]
+----
+$ mailctl ui
+mailctl ui on http://127.0.0.1:54217/ — this machine only; Ctrl-C to stop
+----
+
+It listens on loopback only and has no apply button. See
+xref:ui.adoc[The admin page] for its pages, languages, shortcuts and security.
+
+== import
+
+Prints a config block describing what already exists at a provider, so an
+existing domain can be adopted without hand-writing YAML.
+
+[source,console]
+----
+$ mailctl import -domain example.com -provider purelymail
+----
+
+It writes to stdout and changes nothing. Review the block, then paste it into your
+config.
+
+== mailbox
+
+[source,console]
+----
+$ mailctl mailbox add    contact@example.com
+$ mailctl mailbox add    contact@example.com -password-env CONTACT_PASSWORD
+$ mailctl mailbox rm     contact@example.com
+$ mailctl mailbox passwd contact@example.com
+----
+
+`mailbox add` edits the config file — preserving your comments and formatting —
+and then applies. `mailbox rm` edits the config *only*; it never deletes a mailbox
+at the provider, because removing a line from a file should not destroy someone's
+mail. To delete the mailbox itself, remove it from the config and then run
+`apply -prune -prune-mailboxes`.
+
+`mailbox passwd` changes the credential at the provider. Omit `-password-env` and
+mailctl generates one.
+
+== alias
+
+[source,console]
+----
+$ mailctl alias add info -to contact@example.com -alias-domain example.com
+$ mailctl alias rm  info -alias-domain example.com
+----
+
+As with mailboxes, `add` edits the config and applies, while `rm` edits the config
+only.
+
+Aliases are not available on every provider. Microsoft 365 rejects them outright —
+see xref:providers/ms365.adoc[Microsoft 365].
+
+== apppass
+
+[source,console]
+----
+$ mailctl apppass create contact@example.com -name "phone"
+$ mailctl apppass rm     contact@example.com -name "phone"
+----
+
+Creates or removes an application credential for a mailbox, where the provider
+supports them. Useful when a mailbox has two-factor authentication enabled and a
+mail client therefore cannot use the account password.
+
+== Flags
+
+[cols="1,1,3"]
+|===
+| Flag | Applies to | Meaning
+
+| `-config` | all | Config file path. Defaults to the lookup order in xref:configuration.adoc#where-the-file-is[Configuration].
+| `-domain` | all | Limit the run to this domain. Repeat for several. Omit to process every domain in the file.
+| `-json` | plan, audit, domains, doctor | Print JSON on stdout instead of the human summary.
+| `-plan` | apply | Apply exactly this saved `plan -json` output. Refuses if live state drifted.
+| `-edit-only` | mailbox add, alias add | Edit the config and stop. Run `plan` to review the change.
+| `-yes` | apply | Skip the deletion confirmation prompt.
+| `-prune` | plan, apply | Plan deletion of provider-side objects absent from the config.
+| `-prune-mailboxes` | plan, apply | Allow `-prune` to delete mailboxes. Has no effect without `-prune`, and is rejected if given alone.
+| `-replace-dns` | plan, apply | Replace conflicting MX, SPF, DKIM and DMARC records instead of failing.
+| `-secrets-out` | apply | Write generated credentials to this file, mode `0600`, instead of the Keychain. Refuses an existing path.
+| `-provider` | import | Which provider to read from.
+| `-zone` | import | Cloudflare zone name, defaulting to the domain.
+| `-password-env` | mailbox add, passwd | Environment variable holding the credential.
+| `-alias-domain` | alias add, rm | Which domain the alias belongs to.
+| `-to` | alias add | Alias target address. Repeat for several.
+| `-name` | apppass | Label for the application credential.
+| `-addr` | ui | Address to listen on. Defaults to `127.0.0.1:0`, letting the kernel choose the port.
+| `-data` | ui | Directory for the page's activity log. Defaults to `$XDG_DATA_HOME/mailctl`.
+| `-no-browser` | ui | Do not open a browser after starting.
+|===
+
+Flags scoped to one command are rejected on the others rather than ignored. That
+matters: a `-prune` accepted but unused by `mailbox add` once caused a mailbox
+never named on the command line to be deleted.
+
+== On pruning
+
+`-prune` is how you remove things. It is deliberately awkward for mailboxes.
+
+Deleting a mailbox destroys its mail, so mailctl requires two flags rather than
+one: `-prune` says "remove what the config no longer mentions", and
+`-prune-mailboxes` says "yes, including mailboxes". On top of that the deletion is
+destructive, so the confirmation prompt asks you to type the domain name.
+
+A catch-all is never pruned. Omitting `catchAll` from the config means "leave
+whatever exists alone", not "delete it" — because the two readings are
+indistinguishable in YAML and one of them loses mail.
