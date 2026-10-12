@@ -5,7 +5,8 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write   # upload the release assets and push Casks/mailctl.rb
+  contents: write        # upload the release assets and push the cask branch
+  pull-requests: write   # open the cask pull request into develop
 
 jobs:
   goreleaser:
