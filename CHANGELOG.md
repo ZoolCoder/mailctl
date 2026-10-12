@@ -6,6 +6,21 @@ config schema and CLI flags may change between minor versions; anything that
 would break an existing `mailctl.yaml` or a scripted invocation is called out
 under **Breaking**.
 
+## v0.1.1 — 2026-10-13
+
+### Fixed
+
+- Release packages: the deb, rpm and apk descriptions were unquoted YAML and
+  broke the release configuration.
+
+### Changed
+
+- The documentation locks zc-supplemental-ui v0.2.0, so the site builds in CI
+  with the Arabic translation and the PDF exports.
+- The Homebrew cask arrives as a pull request into `develop`, the branch
+  `brew tap` clones.
+- Dependabot also tracks the gems that build the PDF.
+
 ## v0.1.0 — 2026-10-12
 
 First public release.
