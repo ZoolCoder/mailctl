@@ -64,12 +64,13 @@ release:
   prerelease: auto
 
 # The cask lives in this repo: brew tap zoolcoder/mailctl https://github.com/zoolcoder/mailctl
+# brew tap clones the default branch, develop, so the cask is committed there.
 homebrew_casks:
   - name: mailctl
     repository:
       owner: zoolcoder
       name: mailctl
-      branch: main
+      branch: develop
     directory: Casks
     commit_author:
       name: goreleaser
