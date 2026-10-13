@@ -6,6 +6,20 @@ config schema and CLI flags may change between minor versions; anything that
 would break an existing `mailctl.yaml` or a scripted invocation is called out
 under **Breaking**.
 
+## v0.1.2 — 2026-10-13
+
+### Changed
+
+- The documentation lives in one folder: English in `docs/en`, Arabic in
+  `docs/ar`.
+- On a phone, the pipeline diagram is drawn top to bottom instead of
+  scrolling sideways.
+- The documentation uses zc-supplemental-ui v0.2.1: text meets WCAG AA
+  contrast, the pages carry a Content-Security-Policy, and boxes that scroll
+  take keyboard focus.
+- The site root is a page of its own, with a language, a description and a
+  policy, in place of Antora's redirect notice.
+
 ## v0.1.1 — 2026-10-13
 
 ### Fixed

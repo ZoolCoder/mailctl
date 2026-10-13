@@ -14,3 +14,5 @@ asciidoc:
     title-page: ''
     source-highlighter: rouge
     zc-owner: ZoolCoder
+    # Pages leave out what only a screen needs, such as a diagram's phone drawing.
+    zc-print: ''

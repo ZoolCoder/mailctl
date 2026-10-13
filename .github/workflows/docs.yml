@@ -6,7 +6,6 @@ on:
     # Only rebuild when something that affects the site changes.
     paths:
       - 'docs/**'
-      - 'docs-ar/**'
       - 'antora-playbook.yml'
       - 'antora-assembler.yml'
       - 'Gemfile'

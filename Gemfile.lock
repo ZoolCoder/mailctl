@@ -51,7 +51,9 @@ GEM
       prawn (~> 2.2)
     public_suffix (7.0.5)
     rexml (3.4.4)
-    rouge (4.7.0)
+    rouge (5.1.0)
+      strscan (~> 3.1)
+    strscan (3.1.8)
     treetop (1.6.18)
       polyglot (~> 0.3)
     ttfunk (1.7.0)
@@ -68,7 +70,7 @@ DEPENDENCIES
   csv
   logger
   ostruct
-  rouge (~> 4.5)
+  rouge (~> 5.1)
 
 CHECKSUMS
   Ascii85 (2.0.1) sha256=15cb5d941808543cbb9e7e6aea3c8ec3877f154c3461e8b3673e97f7ecedbe5a
@@ -95,7 +97,8 @@ CHECKSUMS
   prawn-templates (0.1.2) sha256=117aa03db570147cb86fcd7de4fd896994f702eada1d699848a9529a87cd31f1
   public_suffix (7.0.5) sha256=1a8bb08f1bbea19228d3bed6e5ed908d1cb4f7c2726d18bd9cadf60bc676f623
   rexml (3.4.4) sha256=19e0a2c3425dfbf2d4fc1189747bdb2f849b6c5e74180401b15734bc97b5d142
-  rouge (4.7.0) sha256=dba5896715c0325c362e895460a6d350803dbf6427454f49a47500f3193ea739
+  rouge (5.1.0) sha256=b77c632842ab7f5147940212f0345808cccfbce864fd5b631d7d12a35ac85452
+  strscan (3.1.8) sha256=aae2db611a225559f21ffbb71765c9a4e60fd262534a9ea84f4f11c7f32f679e
   treetop (1.6.18) sha256=a3043f32f1c652aa2abdf3a3848edb2d2f69897257af2675516ac61355c183da
   ttfunk (1.7.0) sha256=2370ba484b1891c70bdcafd3448cfd82a32dd794802d81d720a64c15d3ef2a96
 
