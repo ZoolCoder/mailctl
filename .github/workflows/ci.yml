@@ -33,8 +33,12 @@ jobs:
           esac
 
   quick:
-    # pull requests into develop: vet and the short tests, nothing else
-    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    # pull requests into develop: vet and the short tests, nothing else. The
+    # release workflow dispatches it on the cask branch, because a pull request
+    # GoReleaser opens with GITHUB_TOKEN starts no workflow of its own.
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+      (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/chore/cask-'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
