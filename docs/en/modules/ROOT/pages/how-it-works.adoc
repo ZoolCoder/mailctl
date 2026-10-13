@@ -7,8 +7,13 @@ why some settings are refused instead of accepted.
 
 == The pipeline
 
-[.diagram]
+[.diagram.wide]
 image::pipeline.svg["Load, read, desire, diff and order, then plan prints the actions and apply runs them",opts=inline]
+
+ifndef::zc-print[]
+[.diagram.narrow]
+image::pipeline-narrow.svg["Load, read, desire, diff and order, then plan prints the actions and apply runs them",opts=inline]
+endif::[]
 
 . *Load.* The YAML file is parsed strictly. An unknown key is an error with
 its line number, and cross-field rules run before any network call, so a
