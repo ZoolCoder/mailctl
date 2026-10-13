@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write        # upload the release assets and push the cask branch
   pull-requests: write   # open the cask pull request into develop
+  actions: write         # start CI on the cask branch
 
 jobs:
   goreleaser:
@@ -26,3 +27,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Start CI on the cask pull request
+        run: gh workflow run ci.yml --ref "chore/cask-${GITHUB_REF_NAME#v}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
