@@ -13,7 +13,8 @@ import (
 	"time"
 
 	"github.com/zoolcoder/mailctl/internal/plan"
-	"github.com/zoolcoder/zcadmin"
+
+	"github.com/zoolcoder/toolshell"
 )
 
 // opCounts is a plan's shape: how many of each op.
@@ -149,7 +150,7 @@ func (s *Server) runPlan(w http.ResponseWriter, r *http.Request) {
 	} else {
 		d, derr := s.domain(scope)
 		if derr != nil {
-			zcadmin.Back(w, r, "/plan", "", errors.New(s.shell.T(r, "domain %s is not in the config", scope)))
+			toolshell.Back(w, r, "/plan", "", errors.New(s.shell.T(r, "domain %s is not in the config", scope)))
 			return
 		}
 		covered = []string{d.Name}
@@ -169,12 +170,12 @@ func (s *Server) runPlan(w http.ResponseWriter, r *http.Request) {
 	target := scope
 	if err != nil {
 		s.log("plan", target, "plan failed: "+err.Error(), false)
-		zcadmin.Back(w, r, "/plan", "", errors.New(s.shell.T(r, "plan failed: %s", err.Error())))
+		toolshell.Back(w, r, "/plan", "", errors.New(s.shell.T(r, "plan failed: %s", err.Error())))
 		return
 	}
 	c := countOps(built.Actions)
 	s.log("plan", target, planSummary(english{}, c), true)
-	zcadmin.Back(w, r, "/plan", planSummary(tr{s.shell, r}, c), nil)
+	toolshell.Back(w, r, "/plan", planSummary(tr{s.shell, r}, c), nil)
 }
 
 // planSummary is the one-line outcome for the flash and the activity log.

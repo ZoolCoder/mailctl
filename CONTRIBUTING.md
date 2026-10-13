@@ -42,10 +42,10 @@ providers independent of each other.
 
 These are not style preferences. Reviews will hold you to them.
 
-**Exactly three non-stdlib dependencies.** `gopkg.in/yaml.v3` for the config,
-`github.com/zoolcoder/toolshell` — the shell, theme, translations and SVG charts
-the local admin page is built on — and `github.com/zoolcoder/zcadmin` for its
-activity log and redirect helpers. Both ZoolCoder modules are pure stdlib. If a change seems to need
+**Exactly two non-stdlib dependencies.** `gopkg.in/yaml.v3` for the config, and
+`github.com/zoolcoder/toolshell` — the shell, theme, translations, SVG charts,
+activity log and redirect helpers the local admin page is built on. toolshell is
+pure stdlib. If a change seems to need
 another, that is worth discussing in an issue first — the answer is usually that
 a few dozen lines of stdlib will do. There is no HTTP client library, no OAuth
 library and no provider SDK; the API clients are hand written for this reason.

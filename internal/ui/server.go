@@ -16,9 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/user"
 	"strings"
@@ -29,7 +27,8 @@ import (
 	"github.com/zoolcoder/mailctl/internal/dns"
 	"github.com/zoolcoder/mailctl/internal/plan"
 	"github.com/zoolcoder/toolshell"
-	"github.com/zoolcoder/zcadmin"
+	"github.com/zoolcoder/toolshell/activity"
+	"github.com/zoolcoder/toolshell/guard"
 )
 
 //go:embed templates/*.html
@@ -62,12 +61,12 @@ type Deps struct {
 	Planner Planner
 	Audit   Auditor
 	// Activity records what the page did; nil records nothing.
-	Activity *zcadmin.ActivityLog
+	Activity *activity.Log
 	// ConfigPath and DataDir are shown on Settings; neither is read here.
 	ConfigPath string
 	DataDir    string
 	// Host is the address the page is served on. When set, a browser must
-	// address the page by it or by a loopback name; see hostAllowed. Empty
+	// address the page by it or by a loopback name; see guard.HostAllowed. Empty
 	// skips the Host check, which only a test should want; the cross-origin
 	// check runs either way.
 	Host string
@@ -138,19 +137,15 @@ func New(deps Deps) (http.Handler, error) {
 	return s, nil
 }
 
-// templateFuncs are zcadmin's helpers plus mailctl's own; the shell adds icon
-// and themes.
+// templateFuncs are mailctl's own; the shell adds icon, the charts and the
+// text helpers.
 func (s *Server) templateFuncs() template.FuncMap {
-	all := template.FuncMap{"opChip": opChip, "join": strings.Join, "run": run, "provider": provider, "kindIcon": kindIcon, "plural": plural,
+	return template.FuncMap{"opChip": opChip, "join": strings.Join, "run": run, "provider": provider, "kindIcon": kindIcon, "plural": plural,
 		"list":  func(v ...string) []string { return v },
+		"lower": strings.ToLower,
+		"add":   func(a, b int) int { return a + b },
 		"ago":   func(t translator, at time.Time) string { return ago(t, at, s.deps.Now()) },
 		"stamp": func(at time.Time) string { return at.Local().Format("2006-01-02 15:04:05") }}
-	for k, v := range zcadmin.Funcs {
-		if _, own := all[k]; !own {
-			all[k] = v
-		}
-	}
-	return all
 }
 
 // providerChip is how a provider reads on a page: its name and the chip hue
@@ -245,16 +240,16 @@ func opChip(op plan.Op) string {
 // refuses a Host that is not this page's (DNS rebinding) and any write
 // another site starts (CSRF).
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Host != "" && !hostAllowed(r.Host, s.deps.Host) {
+	if s.deps.Host != "" && !guard.HostAllowed(r.Host, s.deps.Host) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if r.Method != http.MethodGet && r.Method != http.MethodHead && crossSite(r) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && guard.CrossSite(r) {
 		http.Error(w, "cross-origin request refused", http.StatusForbidden)
 		return
 	}
 	toolshell.SetHeaders(w.Header())
-	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+	r.Body = http.MaxBytesReader(w, r.Body, guard.MaxBody)
 	// Handlers read fields with FormValue, which drops a parse error; parse
 	// here so a body over the cap is refused instead of read as empty.
 	if r.Method == http.MethodPost {
@@ -264,50 +259,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.mux.ServeHTTP(w, r)
-}
-
-// maxBody caps a request body; every form here is a button with at most a
-// return path.
-const maxBody = 16 << 10
-
-// crossSite reports whether another site started the request. Browsers send
-// Sec-Fetch-Site on every request, and it wins when present: under a strict
-// referrer policy a same-origin form still sends Origin: null. same-site is
-// refused too, since another port on this machine is the same site. Without
-// it, an Origin naming a foreign host is enough to refuse.
-func crossSite(r *http.Request) bool {
-	if site := r.Header.Get("Sec-Fetch-Site"); site != "" {
-		return site != "same-origin" && site != "none"
-	}
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return false
-	}
-	u, err := url.Parse(origin)
-	return err != nil || u.Host != r.Host
-}
-
-// hostAllowed reports whether a browser addressed this page by a name that
-// cannot be an attacker's. DNS rebinding lets an attacker-controlled name
-// resolve to 127.0.0.1, and in that attack the browser still sends the
-// foreign Host it was told to use — so the Host must be the address the
-// server was started on, or a loopback literal, which no public DNS name can
-// be. It is not meant to stop a local process that forges Host; that process
-// already has the port.
-func hostAllowed(host, expected string) bool {
-	if host == expected {
-		return true
-	}
-	name := host
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		name = h
-	}
-	name = strings.Trim(name, "[]")
-	if strings.EqualFold(name, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(name)
-	return ip != nil && ip.IsLoopback()
 }
 
 // --- shared page chrome ----------------------------------------------------
@@ -380,7 +331,7 @@ func (s *Server) log(kind, target, detail string, ok bool) {
 	if s.deps.Activity == nil {
 		return
 	}
-	_ = s.deps.Activity.Append(zcadmin.Activity{At: s.deps.Now(), Kind: kind, Target: target, Detail: detail, OK: ok})
+	_ = s.deps.Activity.Append(activity.Entry{At: s.deps.Now(), Kind: kind, Target: target, Detail: detail, OK: ok})
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {

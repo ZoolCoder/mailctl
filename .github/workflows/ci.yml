@@ -61,13 +61,13 @@ jobs:
       - name: Coverage summary
         run: go tool cover -func=coverage.out | tail -1
       - name: go.mod is tidy and the dependency set has not grown
-        # Exactly three direct dependencies: the YAML parser, toolshell and zcadmin.
+        # Exactly two direct dependencies: the YAML parser and toolshell.
         # A new one is a design decision, not something that arrives unnoticed.
         run: |
           cp go.mod go.mod.bak && cp go.sum go.sum.bak && go mod tidy
           diff -u go.mod.bak go.mod && diff -u go.sum.bak go.sum
           direct=$(go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | tail -n +2 | grep -cv '^$')
-          [ "$direct" -eq 3 ] || { echo "::error::expected 3 direct dependencies, found $direct"; exit 1; }
+          [ "$direct" -eq 2 ] || { echo "::error::expected 2 direct dependencies, found $direct"; exit 1; }
 
   lint:
     if: github.base_ref == 'main' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'

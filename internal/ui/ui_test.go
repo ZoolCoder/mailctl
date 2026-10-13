@@ -18,7 +18,7 @@ import (
 	"github.com/zoolcoder/mailctl/internal/config"
 	"github.com/zoolcoder/mailctl/internal/dns"
 	"github.com/zoolcoder/mailctl/internal/plan"
-	"github.com/zoolcoder/zcadmin"
+	"github.com/zoolcoder/toolshell/activity"
 )
 
 // fakePlanner is the engine seam with no provider behind it.
@@ -86,13 +86,13 @@ type harness struct {
 	client *http.Client
 	fake   *fakePlanner
 	server *Server
-	log    *zcadmin.ActivityLog
+	log    *activity.Log
 }
 
 func newHarness(t *testing.T, p Planner) *harness {
 	t.Helper()
 	logPath := filepath.Join(t.TempDir(), "activity.jsonl")
-	log := &zcadmin.ActivityLog{Path: logPath}
+	log := &activity.Log{Path: logPath}
 	handler, err := New(Deps{
 		Planner: p, Audit: fakeAudit, Activity: log,
 		ConfigPath: "/etc/mailctl.yaml", DataDir: "/data",

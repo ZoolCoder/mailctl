@@ -6,6 +6,17 @@ config schema and CLI flags may change between minor versions; anything that
 would break an existing `mailctl.yaml` or a scripted invocation is called out
 under **Breaking**.
 
+## v0.1.3 — 2026-10-13
+
+### Changed
+
+- The admin page runs on toolshell v0.3.2, the shared ZoolCoder admin UI, in
+  place of zcadmin. The page looks and behaves the same; rule IDs and long
+  code values wrap instead of widening the page, and an icon no style sizes
+  stays 16px.
+- The Host and cross-site checks come from `toolshell/guard`, the same code
+  zoolfleet uses. The rules are unchanged.
+
 ## v0.1.2 — 2026-10-13
 
 ### Changed

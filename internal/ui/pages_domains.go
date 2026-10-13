@@ -7,7 +7,7 @@ package ui
 import (
 	"net/http"
 
-	"github.com/zoolcoder/zcadmin"
+	"github.com/zoolcoder/toolshell"
 )
 
 type domainsPage struct {
@@ -101,8 +101,8 @@ func (s *Server) loadDesired(w http.ResponseWriter, r *http.Request) {
 	s.results.setDesired(d.Name, &desiredRun{At: s.deps.Now(), Records: records, Err: err})
 	if err != nil {
 		s.log("desired", d.Name, "desired records failed: "+err.Error(), false)
-		zcadmin.Back(w, r, back, "", err)
+		toolshell.Back(w, r, back, "", err)
 		return
 	}
-	zcadmin.Back(w, r, back, s.shell.T(r, "desired records loaded"), nil)
+	toolshell.Back(w, r, back, s.shell.T(r, "desired records loaded"), nil)
 }
