@@ -198,7 +198,7 @@ $ go vet ./...
 
 ## Documentation
 
-The site under `docs/` is built with [Antora](https://antora.org), pinned as a
+The site under `docs/` (English in `docs/en`, Arabic in `docs/ar`) is built with [Antora](https://antora.org), pinned as a
 project-local dev dependency so nothing is installed globally:
 
 ```console

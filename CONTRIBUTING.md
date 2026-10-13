@@ -146,7 +146,8 @@ cleanup diff is the thing reviewers most reliably miss.
 
 ## Documentation
 
-The site under `docs/` is Antora, pinned locally:
+The site under `docs/` is Antora, pinned locally. English lives in `docs/en`,
+Arabic in `docs/ar`; a page keeps the same file name in both.
 
 ```console
 $ npm install
