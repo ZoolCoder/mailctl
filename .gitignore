@@ -29,3 +29,6 @@ go.work.sum
 # Ruby gems for the PDF build. Not vendor/: Go would treat it as a vendor
 # directory.
 /.bundle/
+
+# Local secrets for any wrangler dev run.
+.dev.vars
