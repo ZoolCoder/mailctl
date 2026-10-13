@@ -11,7 +11,8 @@ import (
 
 	"github.com/zoolcoder/mailctl/internal/config"
 	"github.com/zoolcoder/mailctl/internal/dns"
-	"github.com/zoolcoder/zcadmin"
+
+	"github.com/zoolcoder/toolshell"
 )
 
 // auditDomainView is one domain's report shaped for a template.
@@ -117,14 +118,14 @@ func (s *Server) runAudit(w http.ResponseWriter, r *http.Request) {
 	if scope == "" {
 		all, err := s.deps.Planner.Domains()
 		if err != nil {
-			zcadmin.Back(w, r, "/audit", "", err)
+			toolshell.Back(w, r, "/audit", "", err)
 			return
 		}
 		domains = all
 	} else {
 		d, err := s.domain(scope)
 		if err != nil {
-			zcadmin.Back(w, r, "/audit", "", errors.New(s.shell.T(r, "domain %s is not in the config", scope)))
+			toolshell.Back(w, r, "/audit", "", errors.New(s.shell.T(r, "domain %s is not in the config", scope)))
 			return
 		}
 		domains = []config.Domain{d}
@@ -147,10 +148,10 @@ func (s *Server) runAudit(w http.ResponseWriter, r *http.Request) {
 	s.log("audit", scope, fmt.Sprintf("%d domains passed, %d failed", v.Pass, v.Fail), v.Fail == 0)
 	flash := s.shell.T(r, "audit: %d domains passed, %d failed", v.Pass, v.Fail)
 	if v.Fail > 0 {
-		zcadmin.Back(w, r, "/audit", "", errors.New(flash))
+		toolshell.Back(w, r, "/audit", "", errors.New(flash))
 		return
 	}
-	zcadmin.Back(w, r, "/audit", flash, nil)
+	toolshell.Back(w, r, "/audit", flash, nil)
 }
 
 // desiredView is one domain's desired DNS shaped for a template.

@@ -1,7 +1,7 @@
 package ui
 
 // Activity: what this page did — plans, audits, desired records — newest first,
-// from the JSONL file zcadmin keeps.
+// from the JSONL file toolshell's activity package keeps.
 
 import (
 	"fmt"
@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/zoolcoder/toolshell"
-	"github.com/zoolcoder/zcadmin"
+	"github.com/zoolcoder/toolshell/activity"
 )
 
 type activityRow struct {
-	zcadmin.Activity
+	activity.Entry
 	Search string
 }
 
@@ -90,7 +90,7 @@ func (s *Server) recentActivity(limit int) []activityRow {
 	}
 	rows := make([]activityRow, 0, len(acts))
 	for _, a := range acts {
-		rows = append(rows, activityRow{Activity: a, Search: strings.ToLower(a.Kind + " " + a.Target + " " + a.Detail)})
+		rows = append(rows, activityRow{Entry: a, Search: strings.ToLower(a.Kind + " " + a.Target + " " + a.Detail)})
 	}
 	return rows
 }
