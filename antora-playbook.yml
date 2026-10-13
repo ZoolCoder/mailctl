@@ -34,7 +34,7 @@ content:
   sources:
     - url: .
       # The English guide and its Arabic translation, one component each.
-      start_paths: [docs, docs-ar]
+      start_paths: [docs/en, docs/ar]
       branches: HEAD
       edit_url: 'https://github.com/zoolcoder/mailctl/edit/develop/{path}'
 
@@ -42,7 +42,7 @@ ui:
   bundle:
     # The ZoolCoder docs UI, the same design as the admin page. Pinned to a
     # release so a change to the bundle reaches this site only by a bump here.
-    url: https://github.com/zoolcoder/zc-supplemental-ui/releases/download/v0.2.0/ui-bundle.zip
+    url: https://github.com/zoolcoder/zc-supplemental-ui/releases/download/v0.2.1/ui-bundle.zip
 
 asciidoc:
   extensions:

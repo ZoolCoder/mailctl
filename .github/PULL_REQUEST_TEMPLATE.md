@@ -11,6 +11,6 @@
 - [ ] `Plan` still performs no I/O: all I/O is inside an action's closure
 - [ ] Config a provider cannot honour is rejected in `config.Validate`, not ignored
 - [ ] Touches a credential path: called out above. No credential reaches stdout or an MCP reply
-- [ ] New command or JSON shape: golden test, `docs/modules/ROOT/pages/commands.adoc` and `adapters/cloud/AGENTS.md` updated
+- [ ] New command or JSON shape: golden test, `commands.adoc` in `docs/en` and `docs/ar`, and `adapters/cloud/AGENTS.md` updated
 - [ ] New or changed skill: eval case under `evals/` when it applies, prunes or handles credentials
 - [ ] No real domain, address or provider ID in tests or fixtures: `example.com` only
