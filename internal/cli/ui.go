@@ -18,8 +18,7 @@ import (
 	"github.com/zoolcoder/mailctl/internal/dns"
 	"github.com/zoolcoder/mailctl/internal/plan"
 	"github.com/zoolcoder/mailctl/internal/ui"
-	"github.com/zoolcoder/zcadmin"
-	"github.com/zoolcoder/zcadmin/auth"
+	"github.com/zoolcoder/toolshell/activity"
 )
 
 // uiOptions is what the ui command takes from its flags.
@@ -40,7 +39,7 @@ func serveUI(ctx context.Context, runner ui.Planner, opts uiOptions, stdout io.W
 	}
 	dataDir := opts.dataDir
 	if dataDir == "" {
-		dataDir = filepath.Dir(auth.DefaultFile("mailctl"))
+		dataDir = activity.DataDir("mailctl")
 	}
 
 	// Port 0 lets the kernel choose, so two instances cannot collide and the
@@ -55,7 +54,7 @@ func serveUI(ctx context.Context, runner ui.Planner, opts uiOptions, stdout io.W
 	handler, err := ui.New(ui.Deps{
 		Planner:    runner,
 		Audit:      liveAudit,
-		Activity:   &zcadmin.ActivityLog{Path: filepath.Join(dataDir, "activity.jsonl")},
+		Activity:   &activity.Log{Path: filepath.Join(dataDir, "activity.jsonl")},
 		ConfigPath: opts.configPath,
 		DataDir:    dataDir,
 		Host:       host,

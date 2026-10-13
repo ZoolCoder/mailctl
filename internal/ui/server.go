@@ -29,7 +29,7 @@ import (
 	"github.com/zoolcoder/mailctl/internal/dns"
 	"github.com/zoolcoder/mailctl/internal/plan"
 	"github.com/zoolcoder/toolshell"
-	"github.com/zoolcoder/zcadmin"
+	"github.com/zoolcoder/toolshell/activity"
 )
 
 //go:embed templates/*.html
@@ -62,7 +62,7 @@ type Deps struct {
 	Planner Planner
 	Audit   Auditor
 	// Activity records what the page did; nil records nothing.
-	Activity *zcadmin.ActivityLog
+	Activity *activity.Log
 	// ConfigPath and DataDir are shown on Settings; neither is read here.
 	ConfigPath string
 	DataDir    string
@@ -138,19 +138,15 @@ func New(deps Deps) (http.Handler, error) {
 	return s, nil
 }
 
-// templateFuncs are zcadmin's helpers plus mailctl's own; the shell adds icon
-// and themes.
+// templateFuncs are mailctl's own; the shell adds icon, the charts and the
+// text helpers.
 func (s *Server) templateFuncs() template.FuncMap {
-	all := template.FuncMap{"opChip": opChip, "join": strings.Join, "run": run, "provider": provider, "kindIcon": kindIcon, "plural": plural,
+	return template.FuncMap{"opChip": opChip, "join": strings.Join, "run": run, "provider": provider, "kindIcon": kindIcon, "plural": plural,
 		"list":  func(v ...string) []string { return v },
+		"lower": strings.ToLower,
+		"add":   func(a, b int) int { return a + b },
 		"ago":   func(t translator, at time.Time) string { return ago(t, at, s.deps.Now()) },
 		"stamp": func(at time.Time) string { return at.Local().Format("2006-01-02 15:04:05") }}
-	for k, v := range zcadmin.Funcs {
-		if _, own := all[k]; !own {
-			all[k] = v
-		}
-	}
-	return all
 }
 
 // providerChip is how a provider reads on a page: its name and the chip hue
@@ -380,7 +376,7 @@ func (s *Server) log(kind, target, detail string, ok bool) {
 	if s.deps.Activity == nil {
 		return
 	}
-	_ = s.deps.Activity.Append(zcadmin.Activity{At: s.deps.Now(), Kind: kind, Target: target, Detail: detail, OK: ok})
+	_ = s.deps.Activity.Append(activity.Entry{At: s.deps.Now(), Kind: kind, Target: target, Detail: detail, OK: ok})
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
