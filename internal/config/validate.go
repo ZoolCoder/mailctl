@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -11,16 +12,28 @@ import (
 // registered at init time in internal/mail, but config must be able to reject a
 // typo without importing that package, so the list is duplicated here
 // deliberately and kept in sync by TestKnownProvidersMatchRegistry.
-var KnownProviders = []string{"purelymail", "cfrouting", "cfsending", "ms365"}
+var KnownProviders = []string{"purelymail", "cfrouting", "cfsending", "ms365", "zoho", "gworkspace", "resend"}
 
 // MailboxlessProviders route mail but do not host it. A domain using only these
 // providers may not declare mailboxes.
-var MailboxlessProviders = []string{"cfrouting", "cfsending"}
+var MailboxlessProviders = []string{"cfrouting", "cfsending", "resend"}
 
 // InboundProviders accept inbound mail: each publishes MX records and creates
-// its own alias routing rules. A domain may name at most one; cfsending is
-// outbound-only and may pair with either.
-var InboundProviders = []string{"purelymail", "cfrouting", "ms365"}
+// its own alias routing rules. A domain may name at most one; cfsending and
+// resend are outbound-only and may pair with any of them.
+var InboundProviders = []string{"purelymail", "cfrouting", "ms365", "zoho", "gworkspace"}
+
+// OutboundOnlyProviders send mail for a domain and never publish its MX.
+var OutboundOnlyProviders = []string{"cfsending", "resend"}
+
+// ZohoRegions are the Zoho data centres mail.zoho.region accepts.
+var ZohoRegions = []string{"com", "eu", "in", "com.au", "jp", "ca", "sa", "uk"}
+
+// ResendRegions are the sending regions mail.resend.region accepts.
+var ResendRegions = []string{"us-east-1", "eu-west-1", "sa-east-1", "ap-northeast-1"}
+
+// displayNameProviders are the providers that set a mailbox's display name.
+var displayNameProviders = []string{"ms365", "zoho", "gworkspace"}
 
 var dmarcPolicies = []string{"none", "quarantine", "reject"}
 
@@ -132,6 +145,9 @@ func (d Domain) validate() []error {
 
 	errs = append(errs, d.Deliverability.validate(d)...)
 	errs = append(errs, validateMS365(d)...)
+	errs = append(errs, validateZoho(d)...)
+	errs = append(errs, validateGWorkspace(d)...)
+	errs = append(errs, validateResend(d)...)
 	return errs
 }
 
@@ -241,10 +257,10 @@ func (v Deliverability) validate(d Domain) []error {
 }
 
 // publishesMX reports whether any configured provider publishes inbound MX records.
-// cfsending is outbound only.
+// cfsending and resend are outbound only.
 func (d Domain) publishesMX() bool {
 	for _, name := range d.Mail.Providers {
-		if name != "cfsending" {
+		if !contains(OutboundOnlyProviders, name) {
 			return true
 		}
 	}
@@ -346,10 +362,13 @@ func validateMS365(d Domain) []error {
 				"domain %s: a mail.ms365 block is set but provider ms365 is not selected; remove the mail.ms365 block or add ms365 to mail.provider",
 				d.Name))
 		}
+		usesDisplayName := slices.ContainsFunc(d.Mail.Providers, func(name string) bool {
+			return contains(displayNameProviders, name)
+		})
 		for _, box := range d.Mailboxes {
-			if box.DisplayName != "" {
+			if box.DisplayName != "" && !usesDisplayName {
 				errs = append(errs, fmt.Errorf(
-					"domain %s: mailbox %s sets displayName, which only the ms365 provider uses; remove it",
+					"domain %s: mailbox %s sets displayName, which only the ms365, zoho and gworkspace providers use; remove it",
 					d.Name, box.Address))
 			}
 			if box.License != "" {
@@ -376,7 +395,7 @@ func validateMS365(d Domain) []error {
 	if settings == nil {
 		errs = append(errs, fmt.Errorf(
 			"domain %s: provider ms365 requires an ms365 block with license and usageLocation", d.Name))
-		return append(errs, mailboxFieldErrors(d)...)
+		return append(errs, mailboxFieldErrors(d, "Microsoft 365")...)
 	}
 
 	if strings.TrimSpace(settings.License) == "" {
@@ -389,17 +408,127 @@ func validateMS365(d Domain) []error {
 	}
 	errs = append(errs, validateDKIMCnames(d.Name, settings.DKIMCnames)...)
 
-	return append(errs, mailboxFieldErrors(d)...)
+	return append(errs, mailboxFieldErrors(d, "Microsoft 365")...)
 }
 
-// mailboxFieldErrors rejects Purelymail-only mailbox fields on an ms365 domain.
-func mailboxFieldErrors(d Domain) []error {
+// validateZoho checks the rules for a domain that does, or does not, use the
+// zoho provider. Zoho aliases are extra addresses on one mailbox, so an alias
+// names exactly one target and no prefix; the catch-all has one target too.
+func validateZoho(d Domain) []error {
+	if !contains(d.Mail.Providers, "zoho") {
+		return blockWithoutProvider(d, "zoho", d.Mail.Zoho != nil)
+	}
+	var errs []error
+	if d.Mail.Zoho != nil && d.Mail.Zoho.Region != "" && !contains(ZohoRegions, d.Mail.Zoho.Region) {
+		errs = append(errs, fmt.Errorf("domain %s: mail.zoho.region %q is not one of %s",
+			d.Name, d.Mail.Zoho.Region, strings.Join(ZohoRegions, ", ")))
+	}
+	errs = append(errs, singleTargetAliases(d, "zoho")...)
+	if d.CatchAll != nil && len(d.CatchAll.To) != 1 {
+		errs = append(errs, fmt.Errorf(
+			"domain %s: provider zoho takes one catchAll target, got %d", d.Name, len(d.CatchAll.To)))
+	}
+	if license := licenseSet(d); license != "" {
+		errs = append(errs, fmt.Errorf(
+			"domain %s: mailbox %s sets license, which only the ms365 provider uses; remove it", d.Name, license))
+	}
+	return append(errs, mailboxFieldErrors(d, "Zoho Mail")...)
+}
+
+// validateGWorkspace checks the rules for a domain that does, or does not,
+// use the gworkspace provider.
+func validateGWorkspace(d Domain) []error {
+	if !contains(d.Mail.Providers, "gworkspace") {
+		return blockWithoutProvider(d, "gworkspace", d.Mail.GWorkspace != nil)
+	}
+	var errs []error
+	if settings := d.Mail.GWorkspace; settings != nil {
+		if strings.ContainsAny(settings.DKIMSelector, " \t.") {
+			errs = append(errs, fmt.Errorf(
+				"domain %s: mail.gworkspace.dkimSelector %q must be a single label such as google", d.Name, settings.DKIMSelector))
+		}
+		if settings.DKIM != "" && !strings.HasPrefix(settings.DKIM, "v=DKIM1") {
+			errs = append(errs, fmt.Errorf(
+				"domain %s: mail.gworkspace.dkim must be the TXT value the Admin console shows, starting v=DKIM1", d.Name))
+		}
+	}
+	errs = append(errs, singleTargetAliases(d, "gworkspace")...)
+	if d.CatchAll != nil {
+		errs = append(errs, fmt.Errorf(
+			"domain %s: provider gworkspace cannot manage a catch-all because the Admin SDK has no routing API; set it under Gmail > Default routing in the Admin console and remove the catchAll block",
+			d.Name))
+	}
+	if license := licenseSet(d); license != "" {
+		errs = append(errs, fmt.Errorf(
+			"domain %s: mailbox %s sets license, which only the ms365 provider uses; remove it", d.Name, license))
+	}
+	return append(errs, mailboxFieldErrors(d, "Google Workspace")...)
+}
+
+// validateResend checks the rules for a domain that does, or does not, use
+// the resend provider.
+func validateResend(d Domain) []error {
+	if !contains(d.Mail.Providers, "resend") {
+		return blockWithoutProvider(d, "resend", d.Mail.Resend != nil)
+	}
+	if d.Mail.Resend != nil && d.Mail.Resend.Region != "" && !contains(ResendRegions, d.Mail.Resend.Region) {
+		return []error{fmt.Errorf("domain %s: mail.resend.region %q is not one of %s",
+			d.Name, d.Mail.Resend.Region, strings.Join(ResendRegions, ", "))}
+	}
+	return nil
+}
+
+func blockWithoutProvider(d Domain, provider string, set bool) []error {
+	if !set {
+		return nil
+	}
+	return []error{fmt.Errorf(
+		"domain %s: a mail.%s block is set but provider %s is not selected; remove the mail.%s block or add %s to mail.provider",
+		d.Name, provider, provider, provider, provider)}
+}
+
+// singleTargetAliases rejects aliases a mailbox-alias provider cannot hold:
+// a prefix match, or anything but one target mailbox on the same domain.
+func singleTargetAliases(d Domain, provider string) []error {
+	var errs []error
+	for _, alias := range d.Aliases {
+		if alias.Prefix() {
+			errs = append(errs, fmt.Errorf(
+				"domain %s: provider %s cannot hold prefix alias %s; name each address", d.Name, provider, alias.Match))
+		}
+		if len(alias.To) != 1 {
+			errs = append(errs, fmt.Errorf(
+				"domain %s: provider %s adds alias %s to one mailbox, so it takes exactly one target, got %d",
+				d.Name, provider, alias.Match, len(alias.To)))
+			continue
+		}
+		if !strings.HasSuffix(strings.ToLower(alias.To[0]), "@"+strings.ToLower(d.Name)) {
+			errs = append(errs, fmt.Errorf(
+				"domain %s: provider %s adds alias %s to a mailbox, so its target must be a mailbox on %s, got %s",
+				d.Name, provider, alias.Match, d.Name, alias.To[0]))
+		}
+	}
+	return errs
+}
+
+func licenseSet(d Domain) string {
+	for _, box := range d.Mailboxes {
+		if box.License != "" {
+			return box.Address
+		}
+	}
+	return ""
+}
+
+// mailboxFieldErrors rejects Purelymail-only mailbox fields on a domain whose
+// provider (named for the message) has no equivalent.
+func mailboxFieldErrors(d Domain, provider string) []error {
 	var errs []error
 	for _, box := range d.Mailboxes {
 		for _, field := range purelymailOnlySet(box) {
 			errs = append(errs, fmt.Errorf(
-				"domain %s: mailbox %s sets %s, which is a Purelymail feature with no Microsoft 365 equivalent; remove it",
-				d.Name, box.Address, field))
+				"domain %s: mailbox %s sets %s, which is a Purelymail feature with no %s equivalent; remove it",
+				d.Name, box.Address, field, provider))
 		}
 	}
 	return errs

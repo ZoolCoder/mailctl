@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -50,9 +51,40 @@ type Domain struct {
 // Mail holds the provider selection and provider-level domain settings.
 // provider accepts either a scalar name or a list of names.
 type Mail struct {
-	Providers []string
-	Settings  DomainSettings
-	MS365     *MS365
+	Providers  []string
+	Settings   DomainSettings
+	MS365      *MS365
+	Zoho       *Zoho
+	GWorkspace *GWorkspace
+	Resend     *Resend
+}
+
+// Zoho holds the Zoho Mail settings for a domain.
+type Zoho struct {
+	// Region is the Zoho data centre the organisation lives in: com, eu, in,
+	// com.au, jp, ca, sa or uk. It picks the API, MX and SPF hosts. Empty
+	// means com.
+	Region string `yaml:"region"`
+}
+
+// GWorkspace holds the Google Workspace settings for a domain. Fields the
+// Admin SDK cannot read or write are taken as input instead.
+type GWorkspace struct {
+	// DKIM is the TXT value the Admin console shows under Apps > Google
+	// Workspace > Gmail > Authenticate email. No public API generates or
+	// reads it. Empty leaves DKIM unpublished.
+	DKIM string `yaml:"dkim"`
+	// DKIMSelector is the selector the key was generated with. Empty means
+	// google, the Admin console default.
+	DKIMSelector string `yaml:"dkimSelector"`
+}
+
+// Resend holds the Resend settings for a sending domain.
+type Resend struct {
+	// Region is where Resend sends from: us-east-1, eu-west-1, sa-east-1 or
+	// ap-northeast-1. It only applies when mailctl adds the domain; Resend
+	// cannot move an existing one. Empty means us-east-1.
+	Region string `yaml:"region"`
 }
 
 // MS365 holds the Microsoft 365 settings for a domain. Fields Graph cannot
@@ -81,7 +113,7 @@ func (m *Mail) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("mail at line %d must be a mapping", node.Line)
 	}
 
-	var providerNode, settingsNode, ms365Node *yaml.Node
+	var providerNode, settingsNode, ms365Node, zohoNode, gworkspaceNode, resendNode *yaml.Node
 	for i := 0; i < len(node.Content); i += 2 {
 		key, value := node.Content[i], node.Content[i+1]
 		switch key.Value {
@@ -91,9 +123,15 @@ func (m *Mail) UnmarshalYAML(node *yaml.Node) error {
 			settingsNode = value
 		case "ms365":
 			ms365Node = value
+		case "zoho":
+			zohoNode = value
+		case "gworkspace":
+			gworkspaceNode = value
+		case "resend":
+			resendNode = value
 		default:
 			return fmt.Errorf(
-				"mail.%s at line %d is not a known field; expected provider, settings or ms365",
+				"mail.%s at line %d is not a known field; expected provider, settings, ms365, zoho, gworkspace or resend",
 				key.Value, key.Line)
 		}
 	}
@@ -112,6 +150,34 @@ func (m *Mail) UnmarshalYAML(node *yaml.Node) error {
 			return err
 		}
 		m.MS365 = parsed
+	}
+
+	if zohoNode != nil {
+		m.Zoho = &Zoho{}
+		if err := decodeStrict(zohoNode, "mail.zoho", map[string]*string{
+			"region": &m.Zoho.Region,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if gworkspaceNode != nil {
+		m.GWorkspace = &GWorkspace{}
+		if err := decodeStrict(gworkspaceNode, "mail.gworkspace", map[string]*string{
+			"dkim":         &m.GWorkspace.DKIM,
+			"dkimSelector": &m.GWorkspace.DKIMSelector,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if resendNode != nil {
+		m.Resend = &Resend{}
+		if err := decodeStrict(resendNode, "mail.resend", map[string]*string{
+			"region": &m.Resend.Region,
+		}); err != nil {
+			return err
+		}
 	}
 
 	if providerNode == nil {
@@ -196,6 +262,32 @@ func decodeMS365(node *yaml.Node) (*MS365, error) {
 	return out, nil
 }
 
+// decodeStrict decodes a mapping of string fields into the targets named by
+// fields, rejecting any other key. Like decodeMS365 it walks Content in pairs
+// so a typo cannot load silently.
+func decodeStrict(node *yaml.Node, path string, fields map[string]*string) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s at line %d must be a mapping", path, node.Line)
+	}
+	for i := 0; i < len(node.Content); i += 2 {
+		key, value := node.Content[i], node.Content[i+1]
+		target, ok := fields[key.Value]
+		if !ok {
+			names := make([]string, 0, len(fields))
+			for name := range fields {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			return fmt.Errorf("%s.%s at line %d is not a known field; expected %s",
+				path, key.Value, key.Line, strings.Join(names, " or "))
+		}
+		if err := value.Decode(target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type DomainSettings struct {
 	AllowAccountReset     *bool `yaml:"allowAccountReset"`
 	SymbolicSubaddressing *bool `yaml:"symbolicSubaddressing"`
@@ -209,9 +301,10 @@ type Mailbox struct {
 	RequireTwoFactorAuthentication *bool      `yaml:"requireTwoFactorAuthentication"`
 	SendWelcomeEmail               *bool      `yaml:"sendWelcomeEmail"`
 	Recovery                       []Recovery `yaml:"recovery"`
-	// DisplayName and License are ms365 fields. Validation rejects them on a
-	// domain using any other provider. License, when set, overrides
-	// MS365.License's domain-level default for this mailbox only.
+	// DisplayName is used by ms365, zoho and gworkspace; License by ms365
+	// only. Validation rejects them on a domain using any other provider.
+	// License, when set, overrides MS365.License's domain-level default for
+	// this mailbox only.
 	DisplayName string `yaml:"displayName"`
 	License     string `yaml:"license"`
 }

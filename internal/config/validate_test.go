@@ -1022,3 +1022,90 @@ func TestMS365CannotPairWithAnotherInboundProvider(t *testing.T) {
 		t.Fatalf("error = %v, want the existing inbound-provider rule to fire", err)
 	}
 }
+
+func TestMailboxAliasProviderValidation(t *testing.T) {
+	base := func(provider string, mutate func(*Domain)) Domain {
+		d := Domain{Name: "example.com", ZoneName: "example.com", Mail: Mail{Providers: []string{provider}}}
+		mutate(&d)
+		return d
+	}
+	cases := []struct {
+		name string
+		d    Domain
+		want string
+	}{
+		{"zoho prefix alias", base("zoho", func(d *Domain) {
+			d.Aliases = []Alias{{Match: "team*", To: []string{"a@example.com"}}}
+		}), "prefix alias"},
+		{"zoho two targets", base("zoho", func(d *Domain) {
+			d.Aliases = []Alias{{Match: "info", To: []string{"a@example.com", "b@example.com"}}}
+		}), "exactly one target"},
+		{"gworkspace foreign target", base("gworkspace", func(d *Domain) {
+			d.Aliases = []Alias{{Match: "info", To: []string{"a@other.com"}}}
+		}), "mailbox on example.com"},
+		{"zoho two catch-all targets", base("zoho", func(d *Domain) {
+			d.CatchAll = &CatchAll{To: []string{"a@example.com", "b@example.com"}}
+		}), "one catchAll target"},
+		{"gworkspace catch-all", base("gworkspace", func(d *Domain) {
+			d.CatchAll = &CatchAll{To: []string{"a@example.com"}}
+		}), "Default routing"},
+		{"zoho bad region", base("zoho", func(d *Domain) { d.Mail.Zoho = &Zoho{Region: "us"} }), "mail.zoho.region"},
+		{"resend bad region", base("resend", func(d *Domain) { d.Mail.Resend = &Resend{Region: "mars-1"} }), "mail.resend.region"},
+		{"gworkspace bad dkim", base("gworkspace", func(d *Domain) {
+			d.Mail.GWorkspace = &GWorkspace{DKIM: "p=KEY"}
+		}), "v=DKIM1"},
+		{"zoho block without provider", base("purelymail", func(d *Domain) { d.Mail.Zoho = &Zoho{} }), "mail.zoho block"},
+		{"resend block without provider", base("purelymail", func(d *Domain) { d.Mail.Resend = &Resend{} }), "mail.resend block"},
+		{"zoho license", base("zoho", func(d *Domain) {
+			d.Mailboxes = []Mailbox{{Address: "a@example.com", License: "X"}}
+		}), "license"},
+		{"gworkspace purelymail field", base("gworkspace", func(d *Domain) {
+			yes := true
+			d.Mailboxes = []Mailbox{{Address: "a@example.com", EnableSearchIndexing: &yes}}
+		}), "Google Workspace"},
+		{"zoho with gworkspace", base("zoho", func(d *Domain) {
+			d.Mail.Providers = append(d.Mail.Providers, "gworkspace")
+		}), "inbound"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Config{Version: 1, Cloudflare: CloudflareConfig{AccountID: "acc"}, Domains: []Domain{tc.d}}.Validate()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want one mentioning %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestMailboxAliasProvidersValidConfigPasses(t *testing.T) {
+	for _, provider := range []string{"zoho", "gworkspace"} {
+		t.Run(provider, func(t *testing.T) {
+			d := Domain{Name: "example.com", ZoneName: "example.com",
+				Mail:      Mail{Providers: []string{provider, "resend"}, Resend: &Resend{Region: "eu-west-1"}},
+				Mailboxes: []Mailbox{{Address: "a@example.com", DisplayName: "A"}},
+				Aliases:   []Alias{{Match: "info", To: []string{"A@example.com"}}},
+			}
+			if provider == "zoho" {
+				d.Mail.Zoho = &Zoho{Region: "eu"}
+				d.CatchAll = &CatchAll{To: []string{"a@example.com"}}
+			} else {
+				d.Mail.GWorkspace = &GWorkspace{DKIM: "v=DKIM1; k=rsa; p=KEY", DKIMSelector: "google"}
+			}
+			if err := (Config{Version: 1, Cloudflare: CloudflareConfig{AccountID: "acc"},
+				Domains: []Domain{d}}).Validate(); err != nil {
+				t.Fatalf("Validate: %v", err)
+			}
+		})
+	}
+}
+
+func TestResendPublishesNoMX(t *testing.T) {
+	d := Domain{Name: "example.com", Mail: Mail{Providers: []string{"resend"}}}
+	if d.publishesMX() {
+		t.Error("a resend-only domain claims to publish MX")
+	}
+	d.Mail.Providers = []string{"zoho", "resend"}
+	if !d.publishesMX() {
+		t.Error("a zoho domain claims to publish no MX")
+	}
+}
