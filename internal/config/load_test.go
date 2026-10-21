@@ -326,3 +326,45 @@ domains:
 		t.Errorf("error should name the offending line; got %q", err)
 	}
 }
+
+func TestLoadParsesProviderBlocksAndRejectsUnknownKeys(t *testing.T) {
+	path := writeConfig(t, `
+version: 1
+cloudflare:
+  accountId: acc
+domains:
+  - name: example.com
+    zoneName: example.com
+    mail:
+      provider: [zoho, resend]
+      zoho:
+        region: eu
+      resend:
+        region: eu-west-1
+`)
+	cfg, err := Load(path, env(nil))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	m := cfg.Domains[0].Mail
+	if m.Zoho == nil || m.Zoho.Region != "eu" || m.Resend == nil || m.Resend.Region != "eu-west-1" {
+		t.Fatalf("mail = %+v", m)
+	}
+
+	path = writeConfig(t, `
+version: 1
+cloudflare:
+  accountId: acc
+domains:
+  - name: example.com
+    zoneName: example.com
+    mail:
+      provider: gworkspace
+      gworkspace:
+        dkimSelectr: google
+`)
+	_, err = Load(path, env(nil))
+	if err == nil || !strings.Contains(err.Error(), "dkimSelectr") || !strings.Contains(err.Error(), "dkimSelector") {
+		t.Fatalf("err = %v, want the unknown key and the valid ones", err)
+	}
+}
