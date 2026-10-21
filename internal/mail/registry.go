@@ -24,6 +24,13 @@ type Deps struct {
 	// point them at httptest servers; production leaves them empty.
 	GraphBaseURL string
 	LoginBaseURL string
+	// The remaining base URLs override the Resend, Zoho and Google endpoints
+	// the same way.
+	ResendBaseURL   string
+	ZohoBaseURL     string
+	ZohoAccountsURL string
+	GoogleBaseURL   string
+	GoogleTokenURL  string
 }
 
 type Factory func(Deps) (Provider, error)
