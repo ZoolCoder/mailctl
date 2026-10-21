@@ -48,6 +48,12 @@ func (s *Server) settingsData(r *http.Request) settingsPage {
 		{Env: "MS365_TENANT_ID", Needed: used["ms365"], For: "ms365"},
 		{Env: "MS365_CLIENT_ID", Needed: used["ms365"], For: "ms365"},
 		{Env: "MS365_CLIENT_SECRET", Needed: used["ms365"], For: "ms365"},
+		{Env: "ZOHO_CLIENT_ID", Needed: used["zoho"], For: "zoho"},
+		{Env: "ZOHO_CLIENT_SECRET", Needed: used["zoho"], For: "zoho"},
+		{Env: "ZOHO_REFRESH_TOKEN", Needed: used["zoho"], For: "zoho"},
+		{Env: "GOOGLE_SERVICE_ACCOUNT_KEY", Needed: used["gworkspace"], For: "gworkspace"},
+		{Env: "GOOGLE_ADMIN_EMAIL", Needed: used["gworkspace"], For: "gworkspace"},
+		{Env: "RESEND_API_KEY", Needed: used["resend"], For: "resend"},
 	} {
 		c.Set = s.deps.Getenv(c.Env) != ""
 		p.Credentials = append(p.Credentials, c)

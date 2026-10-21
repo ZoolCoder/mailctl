@@ -37,6 +37,9 @@ import (
 	// passwd and apppass also call directly.
 	_ "github.com/zoolcoder/mailctl/internal/mail/cfrouting"
 	_ "github.com/zoolcoder/mailctl/internal/mail/cfsending"
+	_ "github.com/zoolcoder/mailctl/internal/mail/gworkspace"
+	_ "github.com/zoolcoder/mailctl/internal/mail/resend"
+	_ "github.com/zoolcoder/mailctl/internal/mail/zoho"
 )
 
 // Version is overridden at build time with
@@ -153,6 +156,13 @@ Environment:
   MS365_TENANT_ID        required when a domain uses the ms365 provider
   MS365_CLIENT_ID        required when a domain uses the ms365 provider
   MS365_CLIENT_SECRET    required when a domain uses the ms365 provider
+  ZOHO_CLIENT_ID         required when a domain uses the zoho provider
+  ZOHO_CLIENT_SECRET     required when a domain uses the zoho provider
+  ZOHO_REFRESH_TOKEN     required when a domain uses the zoho provider
+  ZOHO_ORG_ID            optional zoid; read from the API when unset
+  GOOGLE_SERVICE_ACCOUNT_KEY  required for gworkspace: the JSON key or a path to it
+  GOOGLE_ADMIN_EMAIL     required for gworkspace: the super admin the key acts for
+  RESEND_API_KEY         required when a domain uses the resend provider (full access)
 
 Every variable, including a mailbox's passwordEnv, is read from the environment
 first, then from the macOS Keychain: service "mailctl", account = the variable's
@@ -450,7 +460,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 		providerName := *importProvider
 		if providerName == "" {
-			return errors.New("import needs -provider (purelymail, cfrouting, cfsending, or ms365)")
+			return errors.New("import needs -provider (purelymail, cfrouting, cfsending, ms365, zoho, gworkspace, or resend)")
 		}
 		zoneName := *importZone
 		if zoneName == "" {

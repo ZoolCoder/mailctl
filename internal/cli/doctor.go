@@ -156,6 +156,19 @@ func doctorCredentials(ctx context.Context, cfg config.Config, add func(name, st
 			credential(name)
 		}
 	}
+	if usesProvider(cfg, "zoho") {
+		for _, name := range []string{"ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_REFRESH_TOKEN"} {
+			credential(name)
+		}
+	}
+	if usesProvider(cfg, "gworkspace") {
+		for _, name := range []string{"GOOGLE_SERVICE_ACCOUNT_KEY", "GOOGLE_ADMIN_EMAIL"} {
+			credential(name)
+		}
+	}
+	if usesProvider(cfg, "resend") {
+		credential("RESEND_API_KEY")
+	}
 	for _, d := range cfg.Domains {
 		for _, m := range d.Mailboxes {
 			if m.PasswordEnv == "" {
