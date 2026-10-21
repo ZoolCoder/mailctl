@@ -160,6 +160,12 @@ func provider(id string) providerChip {
 		return providerChip{"Cloudflare", "p-amber"}
 	case "ms365":
 		return providerChip{"Microsoft 365", "p-sky"}
+	case "zoho":
+		return providerChip{"Zoho Mail", "p-red"}
+	case "gworkspace":
+		return providerChip{"Google Workspace", "p-green"}
+	case "resend":
+		return providerChip{"Resend", "plain"}
 	}
 	return providerChip{id, "plain"}
 }
