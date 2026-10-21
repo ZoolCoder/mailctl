@@ -55,7 +55,10 @@ permits, and can deploy a Worker to serve an MTA-STS policy.
 | xref:providers/purelymail.adoc[Purelymail] | yes | yes | yes | yes
 | xref:providers/ms365.adoc[Microsoft 365] | yes | yes | no | no
 | xref:providers/cloudflare.adoc[Cloudflare Email Routing] | yes | — | yes | yes
+| xref:providers/zoho.adoc[Zoho Mail] | yes | yes | yes | yes
+| xref:providers/gworkspace.adoc[Google Workspace] | yes | yes | yes | no
 | xref:providers/cloudflare.adoc[Cloudflare Email Sending] | outbound | — | — | —
+| xref:providers/resend.adoc[Resend] | outbound | — | — | —
 |===
 
 Microsoft 365 lacks aliases and catch-all not because mailctl declines to

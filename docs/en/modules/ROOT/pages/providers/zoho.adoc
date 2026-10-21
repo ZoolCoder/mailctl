@@ -1,0 +1,81 @@
+= Zoho Mail
+:description: Zoho Mail through the Mail API: domain verification, hosting, DKIM, mailboxes, aliases and the catch-all.
+
+Manages a domain's Zoho Mail organization through the Zoho Mail API: adding and
+verifying the domain, enabling mail hosting, creating and verifying a DKIM key, and
+managing mailboxes, aliases and the catch-all.
+
+== Setup
+
+=== 1. Create an OAuth client
+
+In the Zoho API console for your data centre, create a **Self Client** and generate
+a grant code with these scopes:
+
+* `ZohoMail.organization.domains.ALL`
+* `ZohoMail.organization.accounts.ALL`
+* `ZohoMail.organization.READ`
+
+Exchange the grant code for a refresh token once, then export:
+
+[source,properties]
+----
+ZOHO_CLIENT_ID=...
+ZOHO_CLIENT_SECRET=...
+ZOHO_REFRESH_TOKEN=...
+ZOHO_ORG_ID=...        # optional; read from the API when unset
+----
+
+mailctl trades the refresh token for an access token on each run and never stores
+it.
+
+=== 2. Configure the domain
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: zoho
+      zoho:
+        region: eu
+    mailboxes:
+      - address: hello@example.com
+        displayName: Hello
+    aliases:
+      - match: info
+        to: [hello@example.com]
+    catchAll:
+      to: [hello@example.com]
+----
+
+`region` names the data centre that holds the organization: `com` (the default),
+`eu`, `in`, `com.au`, `jp`, `ca`, `sa` or `uk`. It picks the API, the accounts
+server, and the MX and SPF hosts. A wrong region looks like a missing organization.
+
+=== 3. Apply three times
+
+. First apply: adds the domain. Only its ownership TXT record is known.
+. Second apply: publishes that TXT, then verifies the domain, enables hosting and
+creates a DKIM key.
+. Third apply: publishes MX, SPF and DKIM, verifies the DKIM key, and creates
+mailboxes, aliases and the catch-all.
+
+MX is published only after Zoho has verified the domain, so mail is never routed to
+an organization that refuses it. `mailctl plan` says which stage the domain is in.
+
+== Aliases and the catch-all
+
+A Zoho alias is an extra address on one mailbox. So an alias on a `zoho` domain
+takes exactly one target, a mailbox on the same domain, and no trailing `*`.
+Moving an alias to another mailbox removes it from the old one first.
+
+The catch-all also takes exactly one target.
+
+== Mailboxes
+
+A created mailbox gets a password from `passwordEnv`, or a generated one printed
+once. `license` and the Purelymail-only mailbox fields are validation errors.
+
+Deleting a mailbox destroys its mail, so it needs `-prune` **and**
+`-prune-mailboxes`. Unmanaged mailboxes are reported on every `plan`.

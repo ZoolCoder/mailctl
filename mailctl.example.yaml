@@ -79,3 +79,37 @@ domains:
       mtaSts:
         mode: testing
         deploy: true # true uploads and binds the policy-serving Worker
+
+  # Zoho Mail as the inbox, Resend for application mail. A Zoho alias is an
+  # extra address on one mailbox of this domain; the catch-all takes one
+  # target. Needs ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN and
+  # RESEND_API_KEY.
+  # - name: example.org
+  #   mail:
+  #     provider: [zoho, resend]
+  #     zoho:
+  #       region: eu # com (default), eu, in, com.au, jp, ca, sa or uk
+  #     resend:
+  #       region: eu-west-1 # us-east-1 (default), eu-west-1, sa-east-1, ap-northeast-1
+  #   mailboxes:
+  #     - address: hello@example.org
+  #       displayName: Hello
+  #   aliases:
+  #     - match: info
+  #       to: [hello@example.org]
+  #   catchAll:
+  #     to: [hello@example.org]
+
+  # Google Workspace. Google has no API for the DKIM key or the catch-all:
+  # paste the TXT value from Apps > Gmail > Authenticate email into dkim, and
+  # set catch-all routing in the Admin console. Needs
+  # GOOGLE_SERVICE_ACCOUNT_KEY and GOOGLE_ADMIN_EMAIL.
+  # - name: example.net
+  #   mail:
+  #     provider: gworkspace
+  #     gworkspace:
+  #       dkimSelector: google # the default
+  #       dkim: "v=DKIM1; k=rsa; p=..."
+  #   mailboxes:
+  #     - address: jane@example.net
+  #       displayName: Jane Doe

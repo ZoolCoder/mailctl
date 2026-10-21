@@ -54,7 +54,10 @@ Run `mailctl apply` to make these changes.
 | xref:providers/purelymail.adoc[Purelymail] | نعم | نعم | نعم | نعم
 | xref:providers/ms365.adoc[Microsoft 365] | نعم | نعم | لا | لا
 | xref:providers/cloudflare.adoc[Cloudflare Email Routing] | نعم | — | نعم | نعم
+| xref:providers/zoho.adoc[Zoho Mail] | نعم | نعم | نعم | نعم
+| xref:providers/gworkspace.adoc[Google Workspace] | نعم | نعم | نعم | لا
 | xref:providers/cloudflare.adoc[Cloudflare Email Sending] | صادر | — | — | —
+| xref:providers/resend.adoc[Resend] | صادر | — | — | —
 |===
 
 لا يدعم Microsoft 365 الأسماء البديلة والالتقاط الشامل لا لأن mailctl يرفض

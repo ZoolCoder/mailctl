@@ -13,7 +13,7 @@ Order matters: import, config, plan, explain, yes, apply, audit. Never skip the 
 
 Run `mailctl doctor -json`. Any `fail`: use the `mailctl-setup` skill first.
 
-Ask for what you cannot read: the domain, and which mail provider it uses (`purelymail`, `ms365`, `cfrouting` for Cloudflare Email Routing, `cfsending`). The Cloudflare zone may differ from the domain (a subdomain); ask only if the import says the zone is missing.
+Ask for what you cannot read: the domain, and which mail provider it uses (`purelymail`, `ms365`, `zoho`, `gworkspace`, `cfrouting` for Cloudflare Email Routing, or the outbound-only `cfsending` and `resend`). The Cloudflare zone may differ from the domain (a subdomain); ask only if the import says the zone is missing.
 
 ## 2. Import
 

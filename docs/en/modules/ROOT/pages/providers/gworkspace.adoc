@@ -1,0 +1,82 @@
+= Google Workspace
+:description: Google Workspace through the Admin SDK and Site Verification API: domains, users, aliases, and the limits.
+
+Manages a domain's Google Workspace mail through the Admin SDK Directory API and
+the Site Verification API: adding and verifying the domain, publishing its DNS, and
+managing users and their aliases.
+
+== What the APIs cannot do
+
+[cols="1,3"]
+|===
+| DKIM key | No API generates or reads it. Generate it under Apps > Google Workspace > Gmail > Authenticate email, and copy the TXT value into `mail.gworkspace.dkim`. Then mailctl publishes and audits it like any other record. Press **Start authentication** in the Admin console once it is live.
+| Catch-all | Needs a Gmail routing rule, which the Admin SDK does not expose. A `catchAll` block on a `gworkspace` domain is a validation error. Set it under Gmail > Default routing.
+|===
+
+== Setup
+
+=== 1. Create a service account
+
+. In Google Cloud, enable the **Admin SDK API** and the **Site Verification API**.
+. Create a service account and a JSON key for it.
+. In the Admin console, under Security > API controls > Domain-wide delegation,
+grant the service account's client ID these scopes:
++
+----
+https://www.googleapis.com/auth/admin.directory.domain
+https://www.googleapis.com/auth/admin.directory.user
+https://www.googleapis.com/auth/siteverification
+----
+
+Then export:
+
+[source,properties]
+----
+GOOGLE_SERVICE_ACCOUNT_KEY=/path/to/key.json   # or the JSON itself
+GOOGLE_ADMIN_EMAIL=admin@example.com            # a super admin to act as
+----
+
+=== 2. Configure the domain
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: gworkspace
+      gworkspace:
+        dkimSelector: google           # the default
+        dkim: "v=DKIM1; k=rsa; p=..."  # optional
+    mailboxes:
+      - address: jane@example.com
+        displayName: Jane Doe
+    aliases:
+      - match: info
+        to: [jane@example.com]
+----
+
+`displayName` is split into a given and a family name. Without it, the local part
+is used for both.
+
+=== 3. Apply twice
+
+. First apply: adds the domain as a secondary domain, publishes the ownership TXT
+record, and asks Google to verify it.
+. Second apply: once Google reports the domain verified, publishes MX
+(`smtp.google.com`), SPF and DKIM, and creates users and aliases.
+
+If verification fails because the TXT record has not propagated, rerun later.
+
+== Aliases
+
+A Google alias is an extra address on one user. So an alias takes exactly one
+target, a user on the same domain, and no trailing `*`.
+
+== Users
+
+A user is a paid seat. A created user gets `changePasswordAtNextLogin`, so a
+generated password is single-use. `license` and the Purelymail-only mailbox fields
+are validation errors.
+
+Deleting a user destroys their mail and Drive, so it needs `-prune` **and**
+`-prune-mailboxes`. Unmanaged users are reported on every `plan`.

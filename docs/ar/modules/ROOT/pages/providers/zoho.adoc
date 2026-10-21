@@ -1,0 +1,85 @@
+= Zoho Mail
+:description: Zoho Mail عبر Mail API: التحقق من النطاق والاستضافة وDKIM وصناديق البريد والأسماء البديلة والالتقاط الشامل.
+
+// REVIEW
+يدير مؤسسة Zoho Mail لنطاق ما عبر Zoho Mail API: إضافة النطاق والتحقق منه، وتفعيل
+استضافة البريد، وإنشاء مفتاح DKIM والتحقق منه، وإدارة صناديق البريد والأسماء البديلة
+والالتقاط الشامل.
+
+[#setup]
+== الإعداد
+
+[#create-an-oauth-client]
+=== 1. أنشئ عميل OAuth
+
+في وحدة Zoho API لمركز بياناتك، أنشئ **Self Client** وولّد رمز منح بهذه الصلاحيات:
+
+* `ZohoMail.organization.domains.ALL`
+* `ZohoMail.organization.accounts.ALL`
+* `ZohoMail.organization.READ`
+
+استبدل رمز المنح برمز تحديث مرة واحدة، ثم صدّر:
+
+[source,properties]
+----
+ZOHO_CLIENT_ID=...
+ZOHO_CLIENT_SECRET=...
+ZOHO_REFRESH_TOKEN=...
+ZOHO_ORG_ID=...        # optional; read from the API when unset
+----
+
+يبادل mailctl رمز التحديث برمز وصول في كل تشغيل ولا يخزّنه.
+
+[#configure-the-domain]
+=== 2. اضبط النطاق
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: zoho
+      zoho:
+        region: eu
+    mailboxes:
+      - address: hello@example.com
+        displayName: Hello
+    aliases:
+      - match: info
+        to: [hello@example.com]
+    catchAll:
+      to: [hello@example.com]
+----
+
+يحدد `region` مركز البيانات الذي يحمل المؤسسة: `com` (الافتراضي)، أو `eu`، أو `in`،
+أو `com.au`، أو `jp`، أو `ca`، أو `sa`، أو `uk`. يختار به mailctl الواجهة وخادم
+الحسابات ومضيفي MX وSPF. المنطقة الخاطئة تبدو كمؤسسة مفقودة.
+
+[#apply-three-times]
+=== 3. طبّق ثلاث مرات
+
+. التطبيق الأول: يضيف النطاق. لا يُعرف إلا سجل TXT للملكية.
+. التطبيق الثاني: ينشر سجل TXT، ثم يتحقق من النطاق ويفعّل الاستضافة وينشئ مفتاح DKIM.
+. التطبيق الثالث: ينشر MX وSPF وDKIM، ويتحقق من مفتاح DKIM، وينشئ صناديق البريد
+والأسماء البديلة والالتقاط الشامل.
+
+لا يُنشر MX إلا بعد أن يتحقق Zoho من النطاق، فلا يُوجَّه البريد أبدًا إلى مؤسسة
+ترفضه. يذكر `mailctl plan` المرحلة التي بلغها النطاق.
+
+[#aliases-and-the-catch-all]
+== الأسماء البديلة والالتقاط الشامل
+
+الاسم البديل في Zoho عنوان إضافي على صندوق بريد واحد. لذا يأخذ الاسم البديل على نطاق
+`zoho` هدفًا واحدًا بالضبط، صندوق بريد على النطاق نفسه، دون `*` في آخره. ونقل اسم
+بديل إلى صندوق آخر يزيله من القديم أولًا.
+
+والالتقاط الشامل يأخذ هدفًا واحدًا بالضبط أيضًا.
+
+[#mailboxes]
+== صناديق البريد
+
+يأخذ الصندوق المُنشأ كلمة مروره من `passwordEnv`، أو كلمة مولّدة تُطبع مرة واحدة.
+الحقل `license` وحقول صناديق البريد الخاصة بـ Purelymail أخطاء تحقق.
+
+حذف صندوق بريد يتلف بريده، لذا يتطلب `-prune` **و** `-prune-mailboxes`. وتُذكر
+صناديق البريد غير المُدارة في كل `plan`.
