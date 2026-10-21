@@ -61,17 +61,20 @@ mail:
   provider: purelymail        # a name, or a list of names
   settings: {...}             # purelymail only
   ms365: {...}                # ms365 only
+  zoho: {...}                 # zoho only
+  gworkspace: {...}           # gworkspace only
+  resend: {...}               # resend only
 ----
 
 `provider` accepts a single name or a list. Providers fall into two groups:
 
-Inbound:: `purelymail`, `cfrouting`, `ms365`. Each publishes MX records and owns
+Inbound:: `purelymail`, `cfrouting`, `ms365`, `zoho`, `gworkspace`. Each publishes MX records and owns
 inbound mail. **A domain may name at most one**, because two providers competing
 for the same MX record cannot both win.
 
-Outbound only:: `cfsending`. Pairs with any inbound provider.
+Outbound only:: `cfsending`, `resend`. Pairs with any inbound provider.
 
-A provider that routes mail but does not host it — `cfrouting`, `cfsending` — cannot
+A provider that routes mail but does not host it — `cfrouting`, `cfsending`, `resend` — cannot
 have a `mailboxes` block. Declaring one is an error.
 
 === mail.settings (purelymail)
@@ -95,6 +98,11 @@ losing `+tag` addressing across the whole domain.
 
 See xref:providers/ms365.adoc[Microsoft 365].
 
+=== mail.zoho, mail.gworkspace, mail.resend
+
+See xref:providers/zoho.adoc[Zoho Mail], xref:providers/gworkspace.adoc[Google Workspace]
+and xref:providers/resend.adoc[Resend].
+
 == mailboxes
 
 [source,yaml]
@@ -102,7 +110,7 @@ See xref:providers/ms365.adoc[Microsoft 365].
 mailboxes:
   - address: contact@example.com
     passwordEnv: CONTACT_PASSWORD       # omit to generate one
-    displayName: Contact                # ms365 only
+    displayName: Contact                # ms365, zoho, gworkspace
     license: BUSINESS_STANDARD          # ms365 only, overrides the domain default
     enablePasswordReset: true           # purelymail only
     enableSearchIndexing: true          # purelymail only

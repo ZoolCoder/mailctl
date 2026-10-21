@@ -12,7 +12,10 @@
 * Providers
 ** xref:providers/purelymail.adoc[Purelymail]
 ** xref:providers/ms365.adoc[Microsoft 365]
+** xref:providers/zoho.adoc[Zoho Mail]
+** xref:providers/gworkspace.adoc[Google Workspace]
 ** xref:providers/cloudflare.adoc[Cloudflare routing and sending]
+** xref:providers/resend.adoc[Resend]
 * xref:deliverability.adoc[Deliverability]
 * xref:security.adoc[Security]
 * xref:troubleshooting.adoc[Troubleshooting]

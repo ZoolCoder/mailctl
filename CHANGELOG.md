@@ -6,6 +6,22 @@ config schema and CLI flags may change between minor versions; anything that
 would break an existing `mailctl.yaml` or a scripted invocation is called out
 under **Breaking**.
 
+## Unreleased
+
+### Added
+
+- `zoho` provider for Zoho Mail: adds and verifies the domain, enables mail
+  hosting, creates and verifies a DKIM key, and manages mailboxes, aliases and
+  the catch-all. Pick the data centre with `mail.zoho.region`.
+- `gworkspace` provider for Google Workspace: adds and verifies the domain
+  through the Site Verification API and manages users and aliases. DKIM comes
+  from `mail.gworkspace.dkim`, because Google has no API for it.
+- `resend` provider for outbound mail through Resend, like `cfsending`: adds
+  the domain in `mail.resend.region`, publishes its DKIM and bounce records
+  and asks Resend to verify them.
+- New domains on `zoho` and `gworkspace` publish MX only once the provider has
+  verified the domain, so mail is never routed to an inbox that refuses it.
+
 ## v0.1.3 — 2026-10-13
 
 ### Changed

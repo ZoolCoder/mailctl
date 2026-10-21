@@ -1,0 +1,45 @@
+= Resend
+:description: Resend for outbound mail: adding the sending domain, its DNS records and verification.
+
+Resend sends application mail as your domain. It is outbound only, like
+`cfsending`, so it pairs with any inbound provider:
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: [zoho, resend]
+      resend:
+        region: eu-west-1
+----
+
+`region` is where Resend sends from: `us-east-1` (the default), `eu-west-1`,
+`sa-east-1` or `ap-northeast-1`. Resend cannot move a domain between regions;
+delete and re-add it in the dashboard to change it.
+
+== Setup
+
+Create a **full access** API key in the Resend dashboard. A sending-only key cannot
+manage domains.
+
+[source,properties]
+----
+RESEND_API_KEY=re_...
+----
+
+== What mailctl does
+
+. First apply: adds the domain in its region.
+. Second apply: publishes the records Resend returns, the DKIM TXT and the MX and
+SPF on the `send` subdomain, then asks Resend to verify them.
+
+Resend verifies in the background. `plan` keeps a verify action while the domain
+is pending and drops it once Resend reports it verified.
+
+The records sit on `resend._domainkey` and `send`, so they never touch the root MX.
+Resend's SPF merges into the domain's single SPF record only when it is on the
+root; on `send` it stays its own record.
+
+A domain with only `resend` cannot have mailboxes, aliases or a catch-all, since
+nothing receives that mail.

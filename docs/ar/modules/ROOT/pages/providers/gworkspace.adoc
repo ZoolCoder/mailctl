@@ -1,0 +1,90 @@
+= Google Workspace
+:description: Google Workspace عبر Admin SDK وSite Verification API: النطاقات والمستخدمون والأسماء البديلة والحدود.
+
+// REVIEW
+يدير بريد Google Workspace لنطاق ما عبر Admin SDK Directory API وSite Verification
+API: إضافة النطاق والتحقق منه، ونشر سجلات DNS الخاصة به، وإدارة المستخدمين وأسمائهم
+البديلة.
+
+[#what-the-apis-cannot-do]
+== ما لا تستطيعه الواجهات
+
+[cols="1,3"]
+|===
+| مفتاح DKIM | لا توجد واجهة تولّده أو تقرؤه. ولّده من Apps > Google Workspace > Gmail > Authenticate email، وانسخ قيمة TXT إلى `mail.gworkspace.dkim`. عندها ينشره mailctl ويدقّقه كأي سجل آخر. اضغط **Start authentication** في وحدة الإدارة بعد أن يصبح السجل فعّالًا.
+| الالتقاط الشامل | يتطلب قاعدة توجيه في Gmail لا يعرضها Admin SDK. لذا كتلة `catchAll` على نطاق `gworkspace` خطأ تحقق. اضبطه من Gmail > Default routing.
+|===
+
+[#setup]
+== الإعداد
+
+[#create-a-service-account]
+=== 1. أنشئ حساب خدمة
+
+. في Google Cloud، فعّل **Admin SDK API** و**Site Verification API**.
+. أنشئ حساب خدمة ومفتاح JSON له.
+. في وحدة الإدارة، تحت Security > API controls > Domain-wide delegation، امنح معرّف
+عميل حساب الخدمة هذه الصلاحيات:
++
+----
+https://www.googleapis.com/auth/admin.directory.domain
+https://www.googleapis.com/auth/admin.directory.user
+https://www.googleapis.com/auth/siteverification
+----
+
+ثم صدّر:
+
+[source,properties]
+----
+GOOGLE_SERVICE_ACCOUNT_KEY=/path/to/key.json   # or the JSON itself
+GOOGLE_ADMIN_EMAIL=admin@example.com            # a super admin to act as
+----
+
+[#configure-the-domain]
+=== 2. اضبط النطاق
+
+[source,yaml]
+----
+domains:
+  - name: example.com
+    mail:
+      provider: gworkspace
+      gworkspace:
+        dkimSelector: google           # the default
+        dkim: "v=DKIM1; k=rsa; p=..."  # optional
+    mailboxes:
+      - address: jane@example.com
+        displayName: Jane Doe
+    aliases:
+      - match: info
+        to: [jane@example.com]
+----
+
+يُقسَم `displayName` إلى اسم أول واسم عائلة. وبدونه يُستخدم الجزء المحلي من العنوان
+لكليهما.
+
+[#apply-twice]
+=== 3. طبّق مرتين
+
+. التطبيق الأول: يضيف النطاق نطاقًا ثانويًا، وينشر سجل TXT للملكية، ويطلب من Google
+التحقق منه.
+. التطبيق الثاني: بعد أن يُبلغ Google أن النطاق موثَّق، ينشر MX (`smtp.google.com`)
+وSPF وDKIM، وينشئ المستخدمين والأسماء البديلة.
+
+إن فشل التحقق لأن سجل TXT لم ينتشر بعد، فأعد التشغيل لاحقًا.
+
+[#aliases]
+== الأسماء البديلة
+
+الاسم البديل في Google عنوان إضافي على مستخدم واحد. لذا يأخذ هدفًا واحدًا بالضبط،
+مستخدمًا على النطاق نفسه، دون `*` في آخره.
+
+[#users]
+== المستخدمون
+
+كل مستخدم مقعد مدفوع. يحصل المستخدم المُنشأ على `changePasswordAtNextLogin`، فتكون
+كلمة المرور المولّدة صالحة لمرة واحدة. الحقل `license` وحقول صناديق البريد الخاصة بـ
+Purelymail أخطاء تحقق.
+
+حذف مستخدم يتلف بريده وملفات Drive الخاصة به، لذا يتطلب `-prune` **و**
+`-prune-mailboxes`. ويُذكر المستخدمون غير المُدارين في كل `plan`.

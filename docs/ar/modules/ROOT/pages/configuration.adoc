@@ -64,17 +64,20 @@ mail:
   provider: purelymail        # a name, or a list of names
   settings: {...}             # purelymail only
   ms365: {...}                # ms365 only
+  zoho: {...}                 # zoho only
+  gworkspace: {...}           # gworkspace only
+  resend: {...}               # resend only
 ----
 
 يقبل `provider` اسمًا واحدًا أو قائمة. وينقسم المزوّدون إلى مجموعتين:
 
-الوارد:: ``purelymail``، ``cfrouting``، ``ms365``. كل منها ينشر سجلات MX ويملك البريد
+الوارد:: ``purelymail``، ``cfrouting``، ``ms365``، ``zoho``، ``gworkspace``. كل منها ينشر سجلات MX ويملك البريد
 الوارد. **يمكن للنطاق أن يذكر واحدًا منها على الأكثر**، لأن مزوّدَين يتنافسان على
 سجل MX نفسه لا يمكن أن يفوزا معًا.
 
-الصادر فقط:: ``cfsending``. يقترن بأي مزوّد وارد.
+الصادر فقط:: ``cfsending``، ``resend``. يقترن بأي مزوّد وارد.
 
-المزوّد الذي يوجّه البريد ولا يستضيفه، أي `cfrouting` و``cfsending``، لا يمكن أن تكون
+المزوّد الذي يوجّه البريد ولا يستضيفه، أي `cfrouting` و``cfsending`` و``resend``، لا يمكن أن تكون
 له كتلة ``mailboxes``. التصريح بها خطأ.
 
 [#mail-settings-purelymail]
@@ -99,6 +102,13 @@ Purelymail *أي* رمز في اسم المستخدم، لأن `first.last` سي
 
 راجع xref:providers/ms365.adoc[Microsoft 365].
 
+[#mail-zoho-gworkspace-resend]
+=== mail.zoho وmail.gworkspace وmail.resend
+
+// REVIEW
+راجع xref:providers/zoho.adoc[Zoho Mail] وxref:providers/gworkspace.adoc[Google Workspace]
+وxref:providers/resend.adoc[Resend].
+
 [#mailboxes]
 == mailboxes
 
@@ -107,7 +117,7 @@ Purelymail *أي* رمز في اسم المستخدم، لأن `first.last` سي
 mailboxes:
   - address: contact@example.com
     passwordEnv: CONTACT_PASSWORD       # omit to generate one
-    displayName: Contact                # ms365 only
+    displayName: Contact                # ms365, zoho, gworkspace
     license: BUSINESS_STANDARD          # ms365 only, overrides the domain default
     enablePasswordReset: true           # purelymail only
     enableSearchIndexing: true          # purelymail only

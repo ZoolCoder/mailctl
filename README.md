@@ -47,12 +47,22 @@ Run `mailctl apply` to make these changes.
 | `purelymail` | yes | yes | yes | yes |
 | `ms365` | yes | yes | no ¹ | no ¹ |
 | `cfrouting` (Cloudflare Email Routing) | yes | — | yes | yes |
+| `zoho` (Zoho Mail) | yes | yes | yes ² | yes ² |
+| `gworkspace` (Google Workspace) | yes | yes | yes ² | no ³ |
 | `cfsending` (Cloudflare Email Sending) | outbound only | — | — | — |
+| `resend` | outbound only | — | — | — |
 
 ¹ Not because `mailctl` declines to implement them. Microsoft Graph exposes
 `proxyAddresses` as read-only and offers no catch-all surface, so `mailctl`
 rejects those config blocks with an error naming the admin centre rather than
 accepting them and silently doing nothing.
+
+² An alias is an extra address on one mailbox of the same domain, so it takes
+exactly one target and no trailing `*`. The Zoho catch-all takes one target.
+
+³ The Admin SDK has no routing API; set catch-all under Gmail > Default routing
+in the Admin console. The Google DKIM key has no API either: copy its TXT value
+into `mail.gworkspace.dkim`.
 
 DNS is managed in Cloudflare. Deliverability — SPF, DKIM, DMARC, MTA-STS,
 TLS-RPT, BIMI — is managed for any provider combination, including merging every
