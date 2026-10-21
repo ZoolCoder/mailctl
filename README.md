@@ -1,5 +1,8 @@
 <p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset=".github/mark-dark.png">
 <img src=".github/mark.png" width="96" alt="mailctl">
+</picture>
 </p>
 
 <h1 align="center">mailctl</h1>
